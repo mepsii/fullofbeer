@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <!-- fullof.beer as tab header with a beer emoji site icon -->
+    <title>fullof.beer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Premium off-grey center transitioning into a dark vignette */
+            background: radial-gradient(circle, #2d2d2d 0%, #121212 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #f5f0eb;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            touch-action: none;
+        }
+        .canvas-container:active {
+            cursor: grabbing;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        /* Separated liquid layers with independent 3D specular shading filters */
+        #beerCanvas {
+            filter: url('#beer-goo');
+            z-index: 2;
+        }
+        #foamCanvas {
+            filter: url('#foam-goo');
+            z-index: 3;
+        }
+        #glassCanvas {
+            z-index: 4;
+        }
+        #bgCanvas {
+            z-index: 1;
+        }
+        .ui-container {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+        }
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 1.4rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        p {
+            margin: 0 0 15px 0;
+            font-size: 0.8rem;
+            color: #bfa38a;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            pointer-events: auto;
+        }
+        button {
+            background: rgba(212, 120, 10, 0.25);
+            border: 1px solid rgba(212, 120, 10, 0.5);
+            color: #ffe0a3;
+            padding: 10px 22px;
+            font-size: 0.9rem;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            backdrop-filter: blur(4px);
+            font-weight: 600;
+        }
+        button:hover {
+            background: rgba(212, 120, 10, 0.4);
+            border-color: #ffca66;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        .mobile-controls {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 25px;
+            z-index: 10;
+            pointer-events: auto;
+        }
+        .tilt-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+        }
+        .tilt-btn:active {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        /* Styled Bottom Navigation Elements */
+        .github-link {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            z-index: 10;
+            pointer-events: auto;
+        }
+        .github-link a {
+            color: #bfa38a;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: color 0.15s ease;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        .github-link a:hover {
+            color: #ffe0a3;
+        }
+        .gemini-credit {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: #bfa38a;
+            opacity: 0.5; /* Half-transparent */
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        @media (min-width: 768px) {
+            .mobile-controls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Specular Shading Filters -->
+    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="display: none;">
+        <defs>
+            <!-- Specular Filter optimized for clear golden beer with sharp reflections -->
+            <filter id="beer-goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="blur" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo" />
+                <feSpecularLighting in="goo" specularExponent="35" specularConstant="1.8" lighting-color="#ffffff" result="spec">
+                    <feDistantLight azimuth="220" elevation="60" />
+                </feSpecularLighting>
+                <feComposite in="spec" in2="goo" operator="in" result="specOut" />
+                <feBlend in="goo" in2="specOut" mode="source-over" />
+            </filter>
+
+            <!-- Specular Filter optimized for fluffy foam head -->
+            <filter id="foam-goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="5.0" result="blur" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -9" result="goo" />
+                <feSpecularLighting in="goo" specularExponent="12" specularConstant="0.8" lighting-color="#ffffff" result="spec">
+                    <feDistantLight azimuth="220" elevation="55" />
+                </feSpecularLighting>
+                <feComposite in="spec" in2="goo" operator="in" result="specOut" />
+                <feBlend in="goo" in2="specOut" mode="source-over" />
+            </filter>
+        </defs>
+    </svg>
+
+    <div class="ui-container">
+        <h1>have a beer</h1>
+        <p>Drag the glass | Keyboard A-D or Scroll Wheel to tilt continuously</p>
+        <div class="controls">
+            <button id="tapBtn">🍺 Open Tap</button>
+            <button id="resetBtn">Reset Pint</button>
+        </div>
+    </div>
+
+    <div class="mobile-controls">
+        <button class="tilt-btn" id="tiltLeft">↺</button>
+        <button class="tilt-btn" id="tiltRight">↻</button>
+    </div>
+
+    <!-- Centered Credit Text -->
+    <div class="gemini-credit">
+        made with gemini
+    </div>
+
+    <!-- Right-aligned GitHub Link -->
+    <div class="github-link">
+        <a href="https://github.com/mepsii" target="_blank" rel="noopener noreferrer">github</a>
+    </div>
+
+    <div class="canvas-container" id="container">
+        <canvas id="bgCanvas"></canvas>
+        <canvas id="beerCanvas"></canvas>
+        <canvas id="foamCanvas"></canvas>
+        <canvas id="glassCanvas"></canvas>
+    </div>
+
+    <script>
+        const container = document.getElementById('container');
+        const bgCanvas = document.getElementById('bgCanvas');
+        const beerCanvas = document.getElementById('beerCanvas');
+        const foamCanvas = document.getElementById('foamCanvas');
+        const glassCanvas = document.getElementById('glassCanvas');
+
+        const bgCtx = bgCanvas.getContext('2d');
+        const beerCtx = beerCanvas.getContext('2d');
+        const foamCtx = foamCanvas.getContext('2d');
+        const glassCtx = glassCanvas.getContext('2d');
+
+        // Physics Timestepping Constants (Adjusted for lighter, fast fluid feel)
+        const SUBSTEPS = 4;             
+        const GRAVITY = 0.55;           
+        const H = 12.0;                 // SPH interaction radius
+        const H_SQ = H * H;
+        const STIFFNESS = 0.08;         
+        const STIFFNESS_NEAR = 0.15;    
+        const REST_DENSITY = 3.0;       
+        
+        // Cohesive Attraction Parameters (Locking phases together smoothly)
+        const COHESION = 0.015;         // Attraction between beer particles (capillary cohesion)
+        const COHESION_FOAM = 0.006;    // Soft attraction between foam particles
+        const ADHESION = 0.015;         // Subtle adhesive binding at the beer-foam boundary
+        
+        const VISCOSITY = 0.02;         
+        const BUOYANCY = 0.40;          // Capped buoyancy for smooth upward transition
+
+        // Glass Geometry Configuration
+        const GLASS_HEIGHT = 260;
+        const R_BASE = 45;              
+        const R_TOP = 70;               
+        const WALL_THICKNESS = 10;
+
+        let width, height;
+        let isPouring = false;
+
+        // Static Memory Allocation (Zero garbage collection latency)
+        const MAX_PARTICLES = 12000;     // Massive pool limit
+        class Particle {
+            constructor() {
+                this.active = false;
+                this.x = 0; this.y = 0;
+                this.px = 0; this.py = 0;
+                this.vx = 0; this.vy = 0;
+                this.type = 'beer'; 
+                this.foamLife = 1.0;
+                this.life = 1.0;
+                this.inside = false;
+                this.radius = 4;
+            }
+        }
+        const particlePool = Array.from({ length: MAX_PARTICLES }, () => new Particle());
+        let activeCount = 0;
+
+        // Micro bubbles rising in the glass
+        const MAX_BUBBLES = 150;
+        class Bubble {
+            constructor() {
+                this.active = false;
+                this.u = 0; this.v = 0; // Local glass coordinates
+                this.vx = 0; this.vy = 0;
+                this.radius = 1;
+                this.opacity = 1.0;
+            }
+        }
+        const bubblePool = Array.from({ length: MAX_BUBBLES }, () => new Bubble());
+        let activeBubbles = 0;
+
+        // Spatial Hashing Grid buffers
+        const MAX_GRID_CELLS = 200000;
+        const grid = new Int32Array(MAX_GRID_CELLS);
+        const next = new Int32Array(MAX_PARTICLES);
+        let gridWidth = 0, gridHeight = 0;
+
+        // SPH Density Arrays
+        const densityBuffer = new Float32Array(MAX_PARTICLES);
+        const nearDensityBuffer = new Float32Array(MAX_PARTICLES);
+        const foamSubmersion = new Float32Array(MAX_PARTICLES);
+
+        // Position-Based Dynamics (PBD) Displacement accumulators
+        const dispX = new Float32Array(MAX_PARTICLES);
+        const dispY = new Float32Array(MAX_PARTICLES);
+
+        // Glass Object Physics
+        const glass = {
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            theta: 0,
+            vtheta: 0,
+            targetX: 0,
+            targetY: 0,
+            targetTheta: 0,
+            isDragging: false,
+            dragOffsetX: 0,
+            dragOffsetY: 0
+        };
+
+        const mouse = { x: 0, y: 0, isDown: false };
+        const keys = { Left: false, Right: false };
+
+        function resize() {
+            width = bgCanvas.width = beerCanvas.width = foamCanvas.width = glassCanvas.width = window.innerWidth;
+            height = bgCanvas.height = beerCanvas.height = foamCanvas.height = glassCanvas.height = window.innerHeight;
+            
+            gridWidth = Math.ceil(width / H);
+            gridHeight = Math.ceil(height / H);
+
+            if (glass.x === 0) {
+                glass.x = width / 2;
+                glass.y = height - 100;
+                glass.targetX = width / 2;
+                glass.targetY = height - 100;
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        function spawnParticle(x, y, vx, vy, type, inside) {
+            if (activeCount < MAX_PARTICLES) {
+                const p = particlePool[activeCount];
+                p.active = true;
+                p.x = x;
+                p.y = y;
+                p.px = x;
+                p.py = y;
+                p.vx = vx;
+                p.vy = vy;
+                p.type = type;
+                p.foamLife = type === 'foam' ? 1.0 : 0.0;
+                p.life = 1.0;
+                p.inside = inside;
+                p.radius = type === 'beer' ? 4.2 : 5.8;
+                activeCount++;
+            }
+        }
+
+        function removeParticle(idx) {
+            if (idx !== activeCount - 1) {
+                const pTarget = particlePool[idx];
+                const pLast = particlePool[activeCount - 1];
+                
+                pTarget.x = pLast.x; pTarget.y = pLast.y;
+                pTarget.px = pLast.px; pTarget.py = pLast.py;
+                pTarget.vx = pLast.vx; pTarget.vy = pLast.vy;
+                pTarget.type = pLast.type;
+                pTarget.foamLife = pLast.foamLife;
+                pTarget.life = pLast.life;
+                pTarget.inside = pLast.inside;
+                pTarget.radius = pLast.radius;
+            }
+            activeCount--;
+        }
+
+        function spawnBubble(u, v) {
+            if (activeBubbles < MAX_BUBBLES) {
+                const b = bubblePool[activeBubbles];
+                b.active = true;
+                b.u = u;
+                b.v = v;
+                b.vx = (Math.random() - 0.5) * 0.12;
+                b.vy = 0.8 + Math.random() * 1.4; // carbonation rises vertically
+                b.radius = 0.7 + Math.random() * 1.3;
+                b.opacity = 0.3 + Math.random() * 0.5;
+                activeBubbles++;
+            }
+        }
+
+        function removeBubble(idx) {
+            if (idx !== activeBubbles - 1) {
+                const bTarget = bubblePool[idx];
+                const bLast = bubblePool[activeBubbles - 1];
+                bTarget.u = bLast.u; bTarget.v = bLast.v;
+                bTarget.vx = bLast.vx; bTarget.vy = bLast.vy;
+                bTarget.radius = bLast.radius;
+                bTarget.opacity = bLast.opacity;
+            }
+            activeBubbles--;
+        }
+
+        function fillGlass() {
+            activeCount = 0;
+            activeBubbles = 0;
+
+            // Pre-fill clear golden beer (Highly stable dense fill starting at ~80% capacity)
+            for (let i = 0; i < 900; i++) {
+                const v = Math.random() * (GLASS_HEIGHT * 0.8);
+                const halfW = R_BASE + (R_TOP - R_BASE) * (v / GLASS_HEIGHT);
+                const limit = halfW - 4.2; // account for particle radius
+                const u = (Math.random() - 0.5) * limit * 2.0;
+                const clampedU = Math.max(-limit, Math.min(limit, u));
+                const wPos = localToWorld(clampedU, v);
+                spawnParticle(wPos.x, wPos.y, 0, 0, 'beer', true);
+            }
+
+            // Pre-fill foam head on top (Fills glass to the brim)
+            for (let i = 0; i < 180; i++) {
+                const v = (GLASS_HEIGHT * 0.8) + Math.random() * 25;
+                const halfW = R_BASE + (R_TOP - R_BASE) * (v / GLASS_HEIGHT);
+                const limit = halfW - 5.8; // account for foam radius
+                const u = (Math.random() - 0.5) * limit * 2.0;
+                const clampedU = Math.max(-limit, Math.min(limit, u));
+                const wPos = localToWorld(clampedU, v);
+                spawnParticle(wPos.x, wPos.y, 0, 0, 'foam', true);
+            }
+        }
+
+        // Coordinate Mapping Helpers
+        function localToWorld(u, v) {
+            const cos = Math.cos(glass.theta);
+            const sin = Math.sin(glass.theta);
+            return {
+                x: glass.x + u * cos + v * sin,
+                y: glass.y + u * sin - v * cos
+            };
+        }
+
+        function worldToLocal(wx, wy) {
+            const dx = wx - glass.x;
+            const dy = wy - glass.y;
+            const cos = Math.cos(glass.theta);
+            const sin = Math.sin(glass.theta);
+            return {
+                u: dx * cos + dy * sin,
+                v: dx * sin - dy * cos
+            };
+        }
+
+        function updatePhysics() {
+            if (mouse.isDown && glass.isDragging) {
+                glass.targetX = mouse.x - glass.dragOffsetX;
+                glass.targetY = mouse.y - glass.dragOffsetY;
+                glass.targetTheta = -glass.vx * 0.022;
+            } else {
+                const tableY = height - 80;
+                glass.targetY = Math.min(tableY - 20, glass.targetY);
+                glass.targetTheta *= 0.88;
+            }
+
+            if (keys.Left) {
+                glass.targetTheta = Math.max(-Math.PI * 0.45, glass.targetTheta - 0.05);
+            }
+            if (keys.Right) {
+                glass.targetTheta = Math.min(Math.PI * 0.45, glass.targetTheta + 0.05);
+            }
+
+            const targetVx = (glass.targetX - glass.x) * 0.16;
+            const targetVy = (glass.targetY - glass.y) * 0.16;
+            const targetVtheta = (glass.targetTheta - glass.theta) * 0.22;
+
+            glass.vx += (targetVx - glass.vx) * 0.35;
+            glass.vy += (targetVy - glass.vy) * 0.35;
+            glass.vtheta += (targetVtheta - glass.vtheta) * 0.35;
+
+            const dt = 1.0 / SUBSTEPS;
+
+            for (let step = 0; step < SUBSTEPS; step++) {
+                
+                // Continuous substepped spigot pouring
+                if (isPouring) {
+                    for (let i = 0; i < 4; i++) { 
+                        const spawnX = (width / 2) + (Math.random() - 0.5) * 12;
+                        const spawnY = 55 + Math.random() * 8;
+                        const vx = (Math.random() - 0.5) * 0.2;
+                        const vy = 7.5;
+                        const type = Math.random() < 0.06 ? 'foam' : 'beer';
+                        spawnParticle(spawnX, spawnY, vx, vy, type, false);
+                    }
+                }
+
+                // Increment glass coordinates
+                glass.x += glass.vx * dt;
+                glass.y += glass.vy * dt;
+                glass.theta += glass.vtheta * dt;
+
+                // Dynamic Pool Recycling: Clear outside particles if approaching performance limits
+                if (activeCount > MAX_PARTICLES - 200) {
+                    for (let i = activeCount - 1; i >= 0; i--) {
+                        if (!particlePool[i].inside) {
+                            removeParticle(i);
+                            if (activeCount <= MAX_PARTICLES - 500) break;
+                        }
+                    }
+                }
+
+                // Step 1: External Forces, Viscosity, and Buoyancy updates
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+
+                    // Standard gravity is applied equally to both beer and foam
+                    p.vy += GRAVITY * dt;
+
+                    if (p.type === 'foam') {
+                        // Buoyancy ONLY acts inside the glass (fluid columns)
+                        if (p.inside) {
+                            const buoyForce = Math.min(1.2, BUOYANCY * foamSubmersion[i]);
+                            p.vy -= buoyForce * dt;
+                        }
+                    }
+
+                    // HYBRID DAMPING: Damps velocity RELATIVE to the moving glass context inside.
+                    if (p.inside) {
+                        let relVx = p.vx - glass.vx;
+                        let relVy = p.vy - glass.vy;
+                        
+                        // Foam has higher relative damping to quickly freeze vibration; beer is lively but settles.
+                        let drag = p.type === 'foam' ? 0.15 : 0.025; 
+                        
+                        relVx *= (1.0 - drag * dt);
+                        relVy *= (1.0 - drag * dt);
+                        
+                        p.vx = glass.vx + relVx;
+                        p.vy = glass.vy + relVy;
+                    } else {
+                        // Standard, minimal world-space drag in the air (natural ballistic weight)
+                        p.vx *= (1.0 - 0.012 * dt);
+                        p.vy *= (1.0 - 0.012 * dt);
+                    }
+
+                    p.px = p.x;
+                    p.py = p.y;
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                }
+
+                // Step 2: Build Spatial Hashing Grid
+                const numCells = gridWidth * gridHeight;
+                if (numCells < MAX_GRID_CELLS) {
+                    grid.subarray(0, numCells).fill(-1);
+                } else {
+                    grid.fill(-1);
+                }
+
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+                    const gx = Math.floor(p.x / H);
+                    const gy = Math.floor(p.y / H);
+                    if (gx >= 0 && gx < gridWidth && gy >= 0 && gy < gridHeight) {
+                        const cellIdx = gx + gy * gridWidth;
+                        next[i] = grid[cellIdx];
+                        grid[cellIdx] = i;
+                    } else {
+                        next[i] = -1;
+                    }
+                }
+
+                // Step 3: Calculate Local SPH Densities
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+                    const gx = Math.floor(p.x / H);
+                    const gy = Math.floor(p.y / H);
+                    
+                    let dens = 0;
+                    let nearDens = 0;
+                    let submersion = 0;
+
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const nx = gx + dx;
+                            const ny = gy + dy;
+                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                                const cellIdx = nx + ny * gridWidth;
+                                let j = grid[cellIdx];
+                                while (j !== -1) {
+                                    if (i !== j) {
+                                        const pj = particlePool[j];
+                                        const rx = pj.x - p.x;
+                                        const ry = pj.y - p.y;
+                                        const distSq = rx * rx + ry * ry;
+                                        if (distSq < H_SQ) {
+                                            const dist = Math.sqrt(distSq) || 0.1;
+                                            const q = 1.0 - (dist / H);
+                                            dens += q * q;
+                                            nearDens += q * q * q;
+                                            if (p.type === 'foam' && pj.type === 'beer') {
+                                                submersion += q * q;
+                                            }
+                                        }
+                                    }
+                                    j = next[j];
+                                }
+                            }
+                        }
+                    }
+                    densityBuffer[i] = dens;
+                    nearDensityBuffer[i] = nearDens;
+                    foamSubmersion[i] = submersion;
+                }
+
+                // Step 4: SPH Relaxation & Displacement accumulation
+                dispX.fill(0);
+                dispY.fill(0);
+
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+                    const dens = densityBuffer[i];
+                    const nearDens = nearDensityBuffer[i];
+
+                    const press = STIFFNESS * (dens - REST_DENSITY);
+                    const pressNear = STIFFNESS_NEAR * nearDens;
+
+                    const gx = Math.floor(p.x / H);
+                    const gy = Math.floor(p.y / H);
+
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const nx = gx + dx;
+                            const ny = gy + dy;
+                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                                const cellIdx = nx + ny * gridWidth;
+                                let j = grid[cellIdx];
+                                while (j !== -1) {
+                                    if (j > i) { 
+                                        const pj = particlePool[j];
+                                        const rx = pj.x - p.x;
+                                        const ry = pj.y - p.y;
+                                        const distSq = rx * rx + ry * ry;
+                                        if (distSq < H_SQ) {
+                                            const dist = Math.sqrt(distSq) || 0.1;
+                                            const q = 1.0 - (dist / H);
+                                            
+                                            let force = (press + pressNear * q) * q * dt * dt;
+                                            
+                                            // Soften SPH repulsion for foam interactions (prevents clumping/harsh separation)
+                                            if (p.type === 'foam' && pj.type === 'foam') {
+                                                force *= 0.15; 
+                                            } else if ((p.type === 'foam' && pj.type === 'beer') || (p.type === 'beer' && pj.type === 'foam')) {
+                                                force *= 0.30;
+                                            }
+
+                                            // Cohesive Phase-Locking interactions (Glues foam head to beer surface)
+                                            if (p.type === 'beer' && pj.type === 'beer') {
+                                                force -= COHESION * q * q * dt * dt;
+                                            } else if (p.type === 'foam' && pj.type === 'foam') {
+                                                force -= COHESION_FOAM * q * q * dt * dt;
+                                            } else {
+                                                force -= ADHESION * q * q * dt * dt; // Soft Adhesion
+                                            }
+
+                                            force = Math.max(-0.6, Math.min(0.6, force));
+
+                                            const fx = (rx / dist) * force;
+                                            const fy = (ry / dist) * force;
+
+                                            dispX[i] -= fx;
+                                            dispY[i] -= fy;
+                                            dispX[j] += fx;
+                                            dispY[j] += fy;
+                                        }
+                                    }
+                                    j = next[j];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Apply accumulated displacements
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+                    p.x += dispX[i];
+                    p.y += dispY[i];
+                }
+
+                // Step 5: Smooth Viscosity step (XSPH - handles internal shear viscosity creaminess)
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+                    const gx = Math.floor(p.x / H);
+                    const gy = Math.floor(p.y / H);
+                    
+                    let vxAvg = 0;
+                    let vyAvg = 0;
+                    let weightSum = 0;
+
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const nx = gx + dx;
+                            const ny = gy + dy;
+                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
+                                const cellIdx = nx + ny * gridWidth;
+                                let j = grid[cellIdx];
+                                while (j !== -1) {
+                                    if (i !== j) {
+                                        const pj = particlePool[j];
+                                        const rx = pj.x - p.x;
+                                        const ry = pj.y - p.y;
+                                        if (rx * rx + ry * ry < H_SQ) {
+                                            const dist = Math.sqrt(rx * rx + ry * ry) || 0.1;
+                                            const q = 1.0 - (dist / H);
+                                            vxAvg += pj.vx * q;
+                                            vyAvg += pj.vy * q;
+                                            weightSum += q;
+                                        }
+                                    }
+                                    j = next[j];
+                                }
+                            }
+                        }
+                    }
+                    if (weightSum > 0) {
+                        vxAvg /= weightSum;
+                        vyAvg /= weightSum;
+                        
+                        // Relative internal shear damping (viscosity) makes foam clump cream-like
+                        let vFactor = VISCOSITY;
+                        if (p.type === 'foam') {
+                            vFactor = 0.25; // High relative viscosity keeps foam unified, yet preserves momentum
+                        }
+                        p.vx += (vxAvg - p.vx) * vFactor * dt;
+                        p.vy += (vyAvg - p.vy) * vFactor * dt;
+                    }
+                }
+
+                // Find local liquid height to pop rising bubbles
+                let maxLiquidV = 10;
+                for (let i = 0; i < activeCount; i++) {
+                    const p = particlePool[i];
+                    if (p.inside) {
+                        const loc = worldToLocal(p.x, p.y);
+                        if (loc.v > maxLiquidV) maxLiquidV = loc.v;
+                    }
+                }
+
+                // Step 6: Resolve Glass & Solid Boundary Collisions
+                const floorY = height - 80;
+
+                for (let i = activeCount - 1; i >= 0; i--) {
+                    const p = particlePool[i];
+
+                    // Floor Collision
+                    if (p.y > floorY) {
+                        p.y = floorY;
+                        if (!p.inside) {
+                            // Splattered outside particles delete instantly on floor impact
+                            removeParticle(i);
+                            continue;
+                        }
+                        p.vy = -p.vy * 0.1;
+                        p.vx *= 0.5;
+                    }
+
+                    let loc = worldToLocal(p.x, p.y);
+
+                    // Recapture Falling Stream
+                    if (!p.inside) {
+                        if (loc.v > 0 && loc.v < GLASS_HEIGHT) {
+                            const halfW = R_BASE + (R_TOP - R_BASE) * (loc.v / GLASS_HEIGHT);
+                            if (Math.abs(loc.u) < halfW - 2) {
+                                p.inside = true;
+                            }
+                        }
+                    }
+
+                    // Inside Glass Walls Resolution
+                    if (p.inside) {
+                        let collided = false;
+
+                        // Cavity floor
+                        if (loc.v < 0) {
+                            loc.v = 0;
+                            collided = true;
+                        }
+
+                        // Slanted cylinder walls
+                        if (loc.v >= 0 && loc.v <= GLASS_HEIGHT) {
+                            const halfW = R_BASE + (R_TOP - R_BASE) * (loc.v / GLASS_HEIGHT);
+                            const limit = halfW - p.radius * 0.45;
+                            if (Math.abs(loc.u) > limit) {
+                                loc.u = Math.sign(loc.u) * limit;
+                                collided = true;
+                            }
+                        }
+
+                        // Mouth/rim escape check 
+                        if (loc.v > GLASS_HEIGHT) {
+                            if (Math.abs(loc.u) > R_TOP) {
+                                p.inside = false; // Spilled over lip
+                            }
+                        }
+
+                        // Splash-to-foam transition
+                        if (collided && p.type === 'beer') {
+                            const speed = Math.hypot(p.vx, p.vy);
+                            if (speed > 7.0 && Math.random() < 0.04) {
+                                p.type = 'foam';
+                                p.radius = 5.8;
+                                p.foamLife = 0.5 + Math.random() * 0.5;
+                            }
+                        }
+
+                        if (collided) {
+                            const worldPos = localToWorld(loc.u, loc.v);
+                            p.x = worldPos.x;
+                            p.y = worldPos.y;
+                        }
+                    } else {
+                        // Sliding outside wall collisions
+                        const R_outer = R_BASE + (R_TOP - R_BASE) * (Math.max(0, Math.min(GLASS_HEIGHT, loc.v)) / GLASS_HEIGHT) + WALL_THICKNESS;
+                        if (loc.v >= -25 && loc.v <= GLASS_HEIGHT && Math.abs(loc.u) < R_outer) {
+                            const distL = Math.abs(loc.u + R_outer);
+                            const distR = Math.abs(loc.u - R_outer);
+                            const distB = Math.abs(loc.v + 25);
+                            const minDist = Math.min(distL, distR, distB);
+
+                            if (minDist === distL) {
+                                loc.u = -R_outer;
+                            } else if (minDist === distR) {
+                                loc.u = R_outer;
+                            } else {
+                                loc.v = -25;
+                            }
+                            const worldPos = localToWorld(loc.u, loc.v);
+                            p.x = worldPos.x;
+                            p.y = worldPos.y;
+                        }
+                    }
+
+                    p.vx = (p.x - p.px) / dt;
+                    p.vy = (p.y - p.py) / dt;
+
+                    const speed = Math.hypot(p.vx, p.vy);
+                    if (speed > 16.0) {
+                        p.vx = (p.vx / speed) * 16.0;
+                        p.vy = (p.vy / speed) * 16.0;
+                    }
+
+                    // Foam aging and dissolving 
+                    if (p.type === 'foam' && p.inside) {
+                        p.foamLife -= 0.0035 * dt;
+                        if (p.foamLife <= 0) {
+                            p.type = 'beer';
+                            p.radius = 4.2;
+                        }
+                    }
+                }
+
+                // Step 7: Update Micro Bubble physics (rising vertically inside)
+                for (let i = activeBubbles - 1; i >= 0; i--) {
+                    const b = bubblePool[i];
+                    b.u += b.vx;
+                    b.v += b.vy;
+                    b.vx += (Math.random() - 0.5) * 0.04;
+                    b.vx *= 0.95;
+
+                    const halfW = R_BASE + (R_TOP - R_BASE) * (b.v / GLASS_HEIGHT) - 3;
+                    if (Math.abs(b.u) > halfW) {
+                        b.u = Math.sign(b.u) * halfW;
+                        b.vx *= -0.5;
+                    }
+
+                    // Pop bubbles at the dynamic liquid surface level or glass rim
+                    if (b.v > maxLiquidV || b.v > GLASS_HEIGHT - 8) {
+                        // Spawns a tiny foam particle on the surface when bubble pops
+                        if (Math.random() < 0.25 && b.v < GLASS_HEIGHT - 12 && activeCount < MAX_PARTICLES) {
+                            const wPos = localToWorld(b.u, b.v);
+                            spawnParticle(wPos.x, wPos.y, 0, -0.2, 'foam', true);
+                        }
+                        removeBubble(i);
+                    }
+                }
+
+                // Continual carbonation fizz nucleation from the physical glass bottom
+                if (Math.random() < 0.35 && activeBubbles < MAX_BUBBLES) {
+                    const u = (Math.random() - 0.5) * R_BASE * 1.5;
+                    const v = 2 + Math.random() * 8;
+                    spawnBubble(u, v);
+                }
+            }
+        }
+
+        function draw() {
+            bgCtx.clearRect(0, 0, width, height);
+            beerCtx.clearRect(0, 0, width, height);
+            foamCtx.clearRect(0, 0, width, height);
+            glassCtx.clearRect(0, 0, width, height);
+
+            const floorY = height - 80;
+
+            // Draw Wooden Table Top
+            bgCtx.fillStyle = '#1c0e07';
+            bgCtx.fillRect(0, floorY, width, 80);
+            bgCtx.fillStyle = '#120905';
+            bgCtx.fillRect(0, floorY, width, 8);
+
+            // Draw Brass Tap Spigot Nozzle
+            const tapX = width / 2;
+            bgCtx.fillStyle = '#cda142'; 
+            bgCtx.fillRect(tapX - 60, 0, 120, 20); 
+            bgCtx.fillRect(tapX - 12, 20, 24, 38); 
+            bgCtx.fillStyle = '#1a0d07'; 
+            bgCtx.fillRect(tapX - 6, 56, 12, 4);
+
+            // Tap mechanical lever
+            bgCtx.strokeStyle = '#cda142';
+            bgCtx.lineWidth = 6;
+            bgCtx.beginPath();
+            bgCtx.moveTo(tapX, 15);
+            const leverAngle = isPouring ? 0.38 : -0.38;
+            bgCtx.lineTo(tapX + Math.sin(leverAngle) * 45, 15 - Math.cos(leverAngle) * 45);
+            bgCtx.stroke();
+            
+            // Handle Knob
+            bgCtx.fillStyle = '#111';
+            bgCtx.beginPath();
+            bgCtx.arc(tapX + Math.sin(leverAngle) * 45, 15 - Math.cos(leverAngle) * 45, 8, 0, Math.PI * 2);
+            bgCtx.fill();
+
+            // SINGLE-PATH GPU BATCH RENDERING (Draws entire pool in exactly 2 path operations)
+            const PI2 = Math.PI * 2;
+            
+            // 1. Draw clear golden beer
+            beerCtx.fillStyle = '#ffb300';
+            beerCtx.beginPath();
+            for (let i = 0; i < activeCount; i++) {
+                const p = particlePool[i];
+                if (p.type === 'beer') {
+                    beerCtx.moveTo(p.x + p.radius, p.y);
+                    beerCtx.arc(p.x, p.y, p.radius, 0, PI2);
+                }
+            }
+            beerCtx.fill();
+
+            // 2. Draw foam head
+            foamCtx.fillStyle = '#faf6f0';
+            foamCtx.beginPath();
+            for (let i = 0; i < activeCount; i++) {
+                const p = particlePool[i];
+                if (p.type === 'foam') {
+                    foamCtx.moveTo(p.x + p.radius, p.y);
+                    foamCtx.arc(p.x, p.y, p.radius, 0, PI2);
+                }
+            }
+            foamCtx.fill();
+
+            // Draw Crisp Glass elements on top
+            glassCtx.save();
+            glassCtx.translate(glass.x, glass.y);
+            glassCtx.rotate(glass.theta);
+
+            // Draw rising fizzy micro bubbles inside the glass (Corrected coordinate mapping)
+            for (let i = 0; i < activeBubbles; i++) {
+                const b = bubblePool[i];
+                glassCtx.fillStyle = `rgba(255, 255, 255, ${b.opacity})`;
+                glassCtx.beginPath();
+                // Drawn at -b.v to render upward inside local coordinate space
+                glassCtx.arc(b.u, -b.v, b.radius, 0, Math.PI * 2);
+                glassCtx.fill();
+            }
+
+            // Draw Glass outline
+            glassCtx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+            glassCtx.lineWidth = 5.0;
+            glassCtx.beginPath();
+            glassCtx.moveTo(-R_TOP, -GLASS_HEIGHT);
+            glassCtx.lineTo(-R_BASE, 0);
+            glassCtx.quadraticCurveTo(0, 8, R_BASE, 0);
+            glassCtx.lineTo(R_TOP, -GLASS_HEIGHT);
+            glassCtx.stroke();
+
+            // Heavy solid glass base
+            glassCtx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+            glassCtx.beginPath();
+            glassCtx.moveTo(-R_BASE, 0);
+            glassCtx.quadraticCurveTo(0, 5, R_BASE, 0);
+            glassCtx.lineTo(R_BASE + 2, 22);
+            glassCtx.quadraticCurveTo(0, 27, -R_BASE - 2, 22);
+            glassCtx.closePath();
+            glassCtx.fill();
+
+            // Glass specular reflection highlights
+            glassCtx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+            glassCtx.beginPath();
+            glassCtx.moveTo(-R_TOP + 8, -GLASS_HEIGHT + 15);
+            glassCtx.lineTo(-R_BASE + 6, -5);
+            glassCtx.lineTo(-R_BASE + 13, -5);
+            glassCtx.lineTo(-R_TOP + 17, -GLASS_HEIGHT + 15);
+            glassCtx.closePath();
+            glassCtx.fill();
+
+            glassCtx.restore();
+        }
+
+        // Pointer event mapping
+        function getEventPos(e) {
+            const rect = container.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function onStart(e) {
+            const pos = getEventPos(e);
+            mouse.x = pos.x;
+            mouse.y = pos.y;
+            mouse.isDown = true;
+
+            const dist = Math.hypot(pos.x - glass.x, pos.y - (glass.y - GLASS_HEIGHT / 2));
+            if (dist < GLASS_HEIGHT * 0.9) {
+                glass.isDragging = true;
+                glass.dragOffsetX = pos.x - glass.x;
+                glass.dragOffsetY = pos.y - glass.y;
+            }
+        }
+
+        function onMove(e) {
+            const pos = getEventPos(e);
+            mouse.x = pos.x;
+            mouse.y = pos.y;
+        }
+
+        function onEnd() {
+            mouse.isDown = false;
+            glass.isDragging = false;
+        }
+
+        container.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+
+        container.addEventListener('touchstart', onStart, { passive: true });
+        window.addEventListener('touchmove', onMove, { passive: true });
+        window.addEventListener('touchend', onEnd);
+
+        // Continuous keyboard state listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.Left = true;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.Right = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.Left = false;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.Right = false;
+        });
+
+        // Mousewheel continuous tilting
+        window.addEventListener('wheel', (e) => {
+            glass.targetTheta += e.deltaY * 0.0006;
+            glass.targetTheta = Math.min(Math.PI * 0.45, Math.max(-Math.PI * 0.45, glass.targetTheta));
+        });
+
+        const tapBtn = document.getElementById('tapBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        tapBtn.addEventListener('click', () => {
+            isPouring = !isPouring;
+            if (isPouring) {
+                tapBtn.innerHTML = '🛑 Close Tap';
+                tapBtn.style.background = 'rgba(212, 10, 10, 0.25)';
+                tapBtn.style.borderColor = 'rgba(212, 10, 10, 0.5)';
+            } else {
+                tapBtn.innerHTML = '🍺 Open Tap';
+                tapBtn.style.background = 'rgba(212, 120, 10, 0.25)';
+                tapBtn.style.borderColor = 'rgba(212, 120, 10, 0.5)';
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            fillGlass();
+        });
+
+        // Mobile holding tilt buttons
+        const tiltLeft = document.getElementById('tiltLeft');
+        const tiltRight = document.getElementById('tiltRight');
+
+        tiltLeft.addEventListener('mousedown', () => keys.Left = true);
+        tiltLeft.addEventListener('mouseup', () => keys.Left = false);
+        tiltLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys.Left = true; });
+        tiltLeft.addEventListener('touchend', () => keys.Left = false);
+
+        tiltRight.addEventListener('mousedown', () => keys.Right = true);
+        tiltRight.addEventListener('mouseup', () => keys.Right = false);
+        tiltRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys.Right = true; });
+        tiltRight.addEventListener('touchend', () => keys.Right = false);
+
+        function loop() {
+            updatePhysics();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        resize();
+        fillGlass();
+        loop();
+    </script>
+</body>
+</html>
