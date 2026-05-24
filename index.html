@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <!-- fullof.beer as tab header with a beer emoji site icon -->
     <title>fullof.beer</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>">
+    <link class="favicon" rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>">
     
     <style>
         * {
@@ -66,48 +66,107 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            pointer-events: none;
+            pointer-events: none; /* Let drag events fall through outside the card */
             text-align: center;
             width: 90%;
-            max-width: 500px;
+            max-width: 550px;
+        }
+        .ui-card {
+            background: rgba(12, 12, 12, 0.35); /* More transparent card background */
+            border: 1px solid rgba(212, 120, 10, 0.12); /* Extremely subtle, immersion-safe border */
+            border-radius: 12px;
+            padding: 16px 30px;
+            pointer-events: auto; /* Restore interaction for text if needed */
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
         }
         h1 {
-            margin: 0 0 5px 0;
-            font-size: 1.4rem;
-            font-weight: 500;
+            margin: 0 0 4px 0;
+            font-size: 1.8rem; /* Scaled up header font */
+            font-weight: 600;
             letter-spacing: 0.5px;
+            color: #ffe0a3;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
         }
         p {
-            margin: 0 0 15px 0;
-            font-size: 0.8rem;
+            margin: 0;
+            font-size: 0.95rem;
             color: #bfa38a;
             text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            font-weight: 500;
         }
-        .controls {
+        
+        /* Dedicated Sidebar Controls on the Right Edge */
+        .right-controls {
+            position: absolute;
+            top: 50%;
+            right: 25px;
+            transform: translateY(-50%);
+            z-index: 10;
             display: flex;
-            gap: 12px;
+            flex-direction: column;
+            gap: 15px;
             pointer-events: auto;
+            align-items: flex-end; /* Grows leftward, preserving right-margin alignment */
         }
-        button {
-            background: rgba(212, 120, 10, 0.25);
-            border: 1px solid rgba(212, 120, 10, 0.5);
+        .right-controls button {
+            background: rgba(212, 120, 10, 0.12);
+            border: 1px solid rgba(212, 120, 10, 0.3);
             color: #ffe0a3;
-            padding: 10px 22px;
-            font-size: 0.9rem;
-            border-radius: 25px;
+            padding: 10px; /* Symmetrical padding for circular default state */
+            border-radius: 30px;
             cursor: pointer;
-            transition: all 0.15s ease;
             backdrop-filter: blur(4px);
-            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            white-space: nowrap;
+            max-width: 45px; /* Sized exactly to contain only the emoji */
+            height: 45px;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy pop-out transition */
         }
-        button:hover {
-            background: rgba(212, 120, 10, 0.4);
+        .right-controls button .emoji {
+            font-size: 1.15rem;
+            display: inline-block;
+            transition: transform 0.25s ease;
+        }
+        .right-controls button .btn-text {
+            font-size: 0.85rem;
+            opacity: 0;
+            max-width: 0;
+            display: inline-block;
+            overflow: hidden;
+            transition: opacity 0.2s ease, max-width 0.25s ease, margin-left 0.25s ease;
+            margin-left: 0;
+        }
+
+        /* Desktop Hover Pop-out States */
+        .right-controls button:hover {
+            background: rgba(212, 120, 10, 0.35);
             border-color: #ffca66;
+            max-width: 160px; /* Expands to fit the sliding text */
+            padding: 10px 18px; /* Restores wider landscape button padding */
+            box-shadow: 0 8px 20px rgba(212, 120, 10, 0.25);
+            transform: scale(1.05);
         }
-        button:active {
-            transform: scale(0.96);
+        .right-controls button:hover .btn-text {
+            opacity: 1;
+            max-width: 100px;
+            margin-left: 8px; /* Adds space once text is revealed */
         }
+        .right-controls button:hover .emoji {
+            transform: scale(1.1);
+        }
+        .right-controls button:active {
+            transform: scale(0.95);
+        }
+
         .mobile-controls {
             position: absolute;
             bottom: 60px;
@@ -169,6 +228,33 @@
             pointer-events: none;
             white-space: nowrap;
         }
+
+        /* Responsive styling to ensure buttons don't block canvas on mobile */
+        @media (max-width: 768px) {
+            .right-controls {
+                top: auto;
+                bottom: 140px; /* Position safely above bottom tilt triggers */
+                right: 20px;
+                transform: none;
+                flex-direction: row; /* Horizontal button layout */
+                gap: 10px;
+                align-items: center;
+            }
+            /* Damped hover on mobile since hover is triggered by tap */
+            .right-controls button:hover {
+                max-width: 45px; /* Retains circular profile on mobile to prevent sticky-hover bloating */
+                padding: 10px;
+                transform: scale(1.1);
+            }
+            .right-controls button:hover .btn-text {
+                opacity: 0;
+                max-width: 0;
+                margin-left: 0;
+            }
+            .mobile-controls {
+                display: flex;
+            }
+        }
         @media (min-width: 768px) {
             .mobile-controls {
                 display: none;
@@ -206,12 +292,20 @@
     </svg>
 
     <div class="ui-container">
-        <h1>have a beer</h1>
-        <p>Drag the glass | Keyboard A-D or Scroll Wheel to tilt continuously</p>
-        <div class="controls">
-            <button id="tapBtn">🍺 Open Tap</button>
-            <button id="resetBtn">Reset Pint</button>
+        <div class="ui-card">
+            <h1>have a beer while you browse</h1>
+            <p>welcome to fullof.beer</p>
         </div>
+    </div>
+
+    <!-- Tucked Out-of-the-way Right Control Panel -->
+    <div class="right-controls">
+        <button id="tapBtn">
+            <span class="emoji">🍺</span><span class="btn-text">Open Tap</span>
+        </button>
+        <button id="resetBtn">
+            <span class="emoji">🔄</span><span class="btn-text">Reset Pint</span>
+        </button>
     </div>
 
     <div class="mobile-controls">
@@ -306,6 +400,23 @@
         const bubblePool = Array.from({ length: MAX_BUBBLES }, () => new Bubble());
         let activeBubbles = 0;
 
+        // Floating Neon Squircle Obstacle Properties
+        const logo = {
+            baseX: 210,
+            baseY: 210,
+            x: 210,
+            y: 210,
+            size: 226, // Scaled up by an additional third
+            hw: 113,   // half-width
+            hh: 113,   // half-height
+            r: 45      // corner radius
+        };
+
+        const logoImg = new Image();
+        logoImg.src = 'beercat.png';
+        let logoLoaded = false;
+        logoImg.onload = () => { logoLoaded = true; };
+
         // Spatial Hashing Grid buffers
         const MAX_GRID_CELLS = 200000;
         const grid = new Int32Array(MAX_GRID_CELLS);
@@ -341,17 +452,32 @@
         const keys = { Left: false, Right: false };
 
         function resize() {
+            const oldHeight = height;
             width = bgCanvas.width = beerCanvas.width = foamCanvas.width = glassCanvas.width = window.innerWidth;
             height = bgCanvas.height = beerCanvas.height = foamCanvas.height = glassCanvas.height = window.innerHeight;
             
             gridWidth = Math.ceil(width / H);
             gridHeight = Math.ceil(height / H);
 
+            const tableY = height - 80;
+
             if (glass.x === 0) {
-                glass.x = width / 2;
-                glass.y = height - 100;
-                glass.targetX = width / 2;
-                glass.targetY = height - 100;
+                // Spawn glass in the lower-left corner
+                glass.x = 120;
+                glass.y = tableY - 27; // Align exactly with table floorY (since max base depth is -27)
+                glass.targetX = 120;
+                glass.targetY = tableY - 27;
+            } else if (oldHeight !== undefined && oldHeight !== height) {
+                // Adjust glass vertical position dynamically if screen scales on load
+                const dy = height - oldHeight;
+                glass.y += dy;
+                glass.targetY += dy;
+                
+                // Keep the inside fluid aligned with the newly scaled layout
+                for (let i = 0; i < activeCount; i++) {
+                    particlePool[i].y += dy;
+                    particlePool[i].py += dy;
+                }
             }
         }
         window.addEventListener('resize', resize);
@@ -418,30 +544,108 @@
             activeBubbles--;
         }
 
+        // Signed Distance Field (SDF) of a rounded box (squircle)
+        function sdRoundedBox(px, py, cx, cy, hw, hh, r) {
+            const dx = Math.abs(px - cx) - (hw - r);
+            const dy = Math.abs(py - cy) - (hh - r);
+            const mx = Math.max(dx, 0);
+            const my = Math.max(dy, 0);
+            const distToOuterCorner = Math.hypot(mx, my);
+            const distToEdgeInside = Math.min(Math.max(dx, dy), 0);
+            return distToOuterCorner + distToEdgeInside - r;
+        }
+
         function fillGlass() {
             activeCount = 0;
             activeBubbles = 0;
 
-            // Pre-fill clear golden beer (Highly stable dense fill starting at ~80% capacity)
-            for (let i = 0; i < 900; i++) {
-                const v = Math.random() * (GLASS_HEIGHT * 0.8);
-                const halfW = R_BASE + (R_TOP - R_BASE) * (v / GLASS_HEIGHT);
-                const limit = halfW - 4.2; // account for particle radius
-                const u = (Math.random() - 0.5) * limit * 2.0;
-                const clampedU = Math.max(-limit, Math.min(limit, u));
-                const wPos = localToWorld(clampedU, v);
-                spawnParticle(wPos.x, wPos.y, 0, 0, 'beer', true);
+            // Ensure the glass itself is positioned directly on the table before spawns are calculated
+            const floorY = height - 80;
+            const R_top_o = R_TOP + 5; 
+            const R_base_o = R_BASE + 5; 
+            const H_g = GLASS_HEIGHT;
+
+            const boundaryPoints = [
+                { u: -R_top_o, v: H_g },                                    
+                { u: -(R_base_o + (R_top_o - R_base_o) * 0.66), v: H_g * 0.66 }, 
+                { u: -(R_base_o + (R_top_o - R_base_o) * 0.33), v: H_g * 0.33 }, 
+                { u: -R_base_o, v: 0 },                                      
+                { u: -R_base_o, v: -22 },                                    
+                { u: -R_base_o * 0.5, v: -25 },                              
+                { u: 0, v: -27 },                                            
+                { u: R_base_o * 0.5, v: -25 },                               
+                { u: R_base_o, v: -22 },                                     
+                { u: R_base_o, v: 0 },                                       
+                { u: R_base_o + (R_top_o - R_base_o) * 0.33, v: H_g * 0.33 },  
+                { u: R_base_o + (R_top_o - R_base_o) * 0.66, v: H_g * 0.66 },  
+                { u: R_top_o, v: H_g }                                       
+            ];
+
+            let maxWorldY = -999999;
+            const cosT = Math.cos(glass.theta);
+            const sinT = Math.sin(glass.theta);
+
+            for (let i = 0; i < boundaryPoints.length; i++) {
+                const pt = boundaryPoints[i];
+                const wY = glass.y + pt.u * sinT - pt.v * cosT;
+                if (wY > maxWorldY) {
+                    maxWorldY = wY;
+                }
             }
 
-            // Pre-fill foam head on top (Fills glass to the brim)
-            for (let i = 0; i < 180; i++) {
-                const v = (GLASS_HEIGHT * 0.8) + Math.random() * 25;
+            if (maxWorldY > floorY) {
+                const penetration = maxWorldY - floorY;
+                glass.y -= penetration;
+                glass.targetY = glass.y;
+            }
+
+            // High-density pre-fill calculations
+            const fillHeightRatio = 0.96; // Target beer-to-glass height line (96% beer fill)
+            const targetVMax = GLASS_HEIGHT * fillHeightRatio;
+
+            // Tight spacing values compress more particles, effectively doubling the fluid mass
+            const spacingBeer = 3.3; 
+
+            // Grid Lattice pre-fill for beer
+            for (let v = 3.0; v < targetVMax; v += spacingBeer) {
                 const halfW = R_BASE + (R_TOP - R_BASE) * (v / GLASS_HEIGHT);
-                const limit = halfW - 5.8; // account for foam radius
-                const u = (Math.random() - 0.5) * limit * 2.0;
-                const clampedU = Math.max(-limit, Math.min(limit, u));
-                const wPos = localToWorld(clampedU, v);
-                spawnParticle(wPos.x, wPos.y, 0, 0, 'foam', true);
+                const limit = halfW - 4.5; // account for beer particle radius + margin
+                
+                const numInRow = Math.floor((limit * 2.0) / spacingBeer);
+                if (numInRow > 0) {
+                    const rowWidth = (numInRow - 1) * spacingBeer;
+                    const startU = -rowWidth / 2;
+
+                    for (let j = 0; j < numInRow; j++) {
+                        const u = startU + j * spacingBeer;
+                        if (Math.abs(u) < limit) {
+                            const wPos = localToWorld(u, v);
+                            spawnParticle(wPos.x, wPos.y, 0, 0, 'beer', true);
+                        }
+                    }
+                }
+            }
+
+            // Grid Lattice pre-fill for foam (dense cap sitting above the rim)
+            const spacingFoam = 4.8; 
+            const foamHeight = 35.0; // Foam layer depth
+            for (let v = targetVMax; v < targetVMax + foamHeight; v += spacingFoam) {
+                const halfW = R_BASE + (R_TOP - R_BASE) * (v / GLASS_HEIGHT);
+                const limit = halfW - 6.0; // account for foam particle radius + margin
+                
+                const numInRow = Math.floor((limit * 2.0) / spacingFoam);
+                if (numInRow > 0) {
+                    const rowWidth = (numInRow - 1) * spacingFoam;
+                    const startU = -rowWidth / 2;
+
+                    for (let j = 0; j < numInRow; j++) {
+                        const u = startU + j * spacingFoam;
+                        if (Math.abs(u) < limit) {
+                            const wPos = localToWorld(u, v);
+                            spawnParticle(wPos.x, wPos.y, 0, 0, 'foam', true);
+                        }
+                    }
+                }
             }
         }
 
@@ -467,13 +671,19 @@
         }
 
         function updatePhysics() {
+            const floorY = height - 80;
+
+            // Generate drifting bobbing animation for the floating squircle logo (Sway rate lowered)
+            const logoTime = Date.now() * 0.0022;
+            logo.y = logo.baseY + Math.sin(logoTime) * 3.5;
+            logo.x = logo.baseX + Math.cos(logoTime * 0.8) * 1.5;
+
             if (mouse.isDown && glass.isDragging) {
                 glass.targetX = mouse.x - glass.dragOffsetX;
                 glass.targetY = mouse.y - glass.dragOffsetY;
                 glass.targetTheta = -glass.vx * 0.022;
             } else {
-                const tableY = height - 80;
-                glass.targetY = Math.min(tableY - 20, glass.targetY);
+                glass.targetY = Math.min(floorY - 20, glass.targetY);
                 glass.targetTheta *= 0.88;
             }
 
@@ -498,12 +708,13 @@
                 
                 // Continuous substepped spigot pouring
                 if (isPouring) {
-                    for (let i = 0; i < 4; i++) { 
-                        const spawnX = (width / 2) + (Math.random() - 0.5) * 12;
-                        const spawnY = 55 + Math.random() * 8;
-                        const vx = (Math.random() - 0.5) * 0.2;
-                        const vy = 7.5;
-                        const type = Math.random() < 0.06 ? 'foam' : 'beer';
+                    const tapX = width - 150; // Align spawn physics to the top right corner
+                    for (let i = 0; i < 2; i++) { 
+                        const spawnX = tapX + (Math.random() - 0.5) * 3;
+                        const spawnY = 55 + i * 5.5;
+                        const vx = 0;   
+                        const vy = 9.0;  
+                        const type = Math.random() < 0.04 ? 'foam' : 'beer';
                         spawnParticle(spawnX, spawnY, vx, vy, type, false);
                     }
                 }
@@ -512,6 +723,138 @@
                 glass.x += glass.vx * dt;
                 glass.y += glass.vy * dt;
                 glass.theta += glass.vtheta * dt;
+
+                // --- Glass-to-Table collision resolution ---
+                const R_top_o = R_TOP + 5; 
+                const R_base_o = R_BASE + 5; 
+                const H_g = GLASS_HEIGHT;
+
+                // Set of sampling coordinates describing the outer profile of the glass
+                const boundaryPoints = [
+                    { u: -R_top_o, v: H_g },                                    
+                    { u: -(R_base_o + (R_top_o - R_base_o) * 0.66), v: H_g * 0.66 }, 
+                    { u: -(R_base_o + (R_top_o - R_base_o) * 0.33), v: H_g * 0.33 }, 
+                    { u: -R_base_o, v: 0 },                                      
+                    { u: -R_base_o, v: -22 },                                    
+                    { u: -R_base_o * 0.5, v: -25 },                              
+                    { u: 0, v: -27 },                                            
+                    { u: R_base_o * 0.5, v: -25 },                               
+                    { u: R_base_o, v: -22 },                                     
+                    { u: R_base_o, v: 0 },                                       
+                    { u: R_base_o + (R_top_o - R_base_o) * 0.33, v: H_g * 0.33 },  
+                    { u: R_base_o + (R_top_o - R_base_o) * 0.66, v: H_g * 0.66 },  
+                    { u: R_top_o, v: H_g }                                       
+                ];
+
+                let maxWorldY = -999999;
+                let lowestU = 0;
+                let lowestV = 0;
+
+                const cosT = Math.cos(glass.theta);
+                const sinT = Math.sin(glass.theta);
+
+                for (let i = 0; i < boundaryPoints.length; i++) {
+                    const pt = boundaryPoints[i];
+                    const wY = glass.y + pt.u * sinT - pt.v * cosT;
+                    if (wY > maxWorldY) {
+                        maxWorldY = wY;
+                        lowestU = pt.u;
+                        lowestV = pt.v;
+                    }
+                }
+
+                if (maxWorldY > floorY) {
+                    const penetration = maxWorldY - floorY;
+                    glass.y -= penetration; // Positional correction to prevent clipping
+
+                    // Find translation relative to center-of-mass pivot (glass.x, glass.y)
+                    const rx = lowestU * cosT + lowestV * sinT;
+                    const ry = lowestU * sinT - lowestV * cosT;
+
+                    // Contact point velocity relative to table top
+                    const relVelY = glass.vy + glass.vtheta * rx;
+
+                    if (relVelY > 0) {
+                        const restitution = 0.35; // bounce intensity
+                        const mass = 1.0;
+                        const inertia = 2500.0; 
+                        
+                        // Rotational and linear impulse calculation
+                        const impulse = (1.0 + restitution) * relVelY / (1.0 / mass + (rx * rx) / inertia);
+
+                        glass.vy -= impulse / mass;
+                        glass.vtheta -= (impulse * rx) / inertia;
+                        glass.vx *= 0.82; // horizontal friction on impact
+                    }
+                }
+
+                // --- Glass-to-Obstacle (Logo) Collision solver ---
+                let maxLogoPen = 0;
+                let colPtLogoX = 0;
+                let colPtLogoY = 0;
+                let colNormalLogoX = 0;
+                let colNormalLogoY = 0;
+                const glassThicknessMargin = 5.0; // Margin matching physical glass bounds
+
+                for (let i = 0; i < boundaryPoints.length; i++) {
+                    const pt = boundaryPoints[i];
+                    const wX = glass.x + pt.u * cosT + pt.v * sinT;
+                    const wY = glass.y + pt.u * sinT - pt.v * cosT;
+
+                    const sd = sdRoundedBox(wX, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                    if (sd < glassThicknessMargin) {
+                        const pen = glassThicknessMargin - sd;
+                        if (pen > maxLogoPen) {
+                            maxLogoPen = pen;
+                            colPtLogoX = wX;
+                            colPtLogoY = wY;
+
+                            // Normal calculation via central difference approximations on SDF
+                            const eps = 0.5;
+                            const dX = sdRoundedBox(wX + eps, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(wX - eps, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                            const dY = sdRoundedBox(wX, wY + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(wX, wY - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                            const len = Math.hypot(dX, dY) || 0.001;
+                            colNormalLogoX = dX / len;
+                            colNormalLogoY = dY / len;
+                        }
+                    }
+                }
+
+                if (maxLogoPen > 0) {
+                    // Correct overlapping coordinates instantly
+                    glass.x += colNormalLogoX * maxLogoPen;
+                    glass.y += colNormalLogoY * maxLogoPen;
+
+                    // Standard rigid body impact equations mapped onto the glass shell
+                    const rx = colPtLogoX - glass.x;
+                    const ry = colPtLogoY - glass.y;
+
+                    // Normal linear contact point velocity
+                    const vcX = glass.vx - glass.vtheta * ry;
+                    const vcY = glass.vy + glass.vtheta * rx;
+                    const normalVel = vcX * colNormalLogoX + vcY * colNormalLogoY;
+
+                    if (normalVel < 0) {
+                        const restitution = 0.45; // Springy neon sign bounce reaction
+                        const mass = 1.0;
+                        const inertia = 2500.0;
+
+                        const r_cross_n = rx * colNormalLogoY - ry * colNormalLogoX;
+                        const impulse = -(1.0 + restitution) * normalVel / (1.0 / mass + (r_cross_n * r_cross_n) / inertia);
+
+                        // Adjust kinetic vectors instantly
+                        glass.vx += (impulse / mass) * colNormalLogoX;
+                        glass.vy += (impulse / mass) * colNormalLogoY;
+                        glass.vtheta += (impulse * r_cross_n) / inertia;
+
+                        // Tangential sliding friction damping
+                        const tangX = -colNormalLogoY;
+                        const tangY = colNormalLogoX;
+                        const tangVel = vcX * tangX + vcY * tangY;
+                        glass.vx -= tangVel * 0.15 * tangX;
+                        glass.vy -= tangVel * 0.15 * tangY;
+                    }
+                }
 
                 // Dynamic Pool Recycling: Clear outside particles if approaching performance limits
                 if (activeCount > MAX_PARTICLES - 200) {
@@ -762,8 +1105,6 @@
                 }
 
                 // Step 6: Resolve Glass & Solid Boundary Collisions
-                const floorY = height - 80;
-
                 for (let i = activeCount - 1; i >= 0; i--) {
                     const p = particlePool[i];
 
@@ -777,6 +1118,40 @@
                         }
                         p.vy = -p.vy * 0.1;
                         p.vx *= 0.5;
+                    }
+
+                    // Obstacle Collision solver using dynamic squircle distance fields (SDF)
+                    const sd = sdRoundedBox(p.x, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                    const colDist = p.radius + 1.2; // Add soft clearance layer
+                    if (sd < colDist) {
+                        const penetration = colDist - sd;
+                        
+                        // Finite difference numerical boundary normal calculation
+                        const eps = 0.5;
+                        const dX = sdRoundedBox(p.x + eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x - eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                        const dY = sdRoundedBox(p.x, p.y + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x, p.y - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                        const len = Math.hypot(dX, dY) || 0.001;
+                        const nx = dX / len;
+                        const ny = dY / len;
+
+                        p.x += nx * penetration;
+                        p.y += ny * penetration;
+
+                        const dot = p.vx * nx + p.vy * ny;
+                        if (dot < 0) {
+                            // Elastic bounce + friction
+                            p.vx -= 1.35 * dot * nx;
+                            p.vy -= 1.35 * dot * ny;
+                            p.vx *= 0.85; 
+                            p.vy *= 0.85;
+
+                            // Turn high velocity impacts into foam splashes
+                            if (p.type === 'beer' && Math.abs(dot) > 4.0 && Math.random() < 0.25) {
+                                p.type = 'foam';
+                                p.radius = 5.8;
+                                p.foamLife = 0.4 + Math.random() * 0.4;
+                            }
+                        }
                     }
 
                     let loc = worldToLocal(p.x, p.y);
@@ -864,12 +1239,17 @@
                         p.vy = (p.vy / speed) * 16.0;
                     }
 
-                    // Foam aging and dissolving 
+                    // Foam aging and dissolving (Only 1/3 equivalent volume turns to beer; 2/3 vanishes)
                     if (p.type === 'foam' && p.inside) {
                         p.foamLife -= 0.0035 * dt;
                         if (p.foamLife <= 0) {
-                            p.type = 'beer';
-                            p.radius = 4.2;
+                            if (Math.random() < 0.33) {
+                                p.type = 'beer';
+                                p.radius = 4.2;
+                            } else {
+                                removeParticle(i);
+                                continue;
+                            }
                         }
                     }
                 }
@@ -908,6 +1288,49 @@
             }
         }
 
+        // Custom path generator for rendering squircles
+        function drawSquircle(ctx, x, y, size, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + size - r, y);
+            ctx.quadraticCurveTo(x + size, y, x + size, y + r);
+            ctx.lineTo(x + size, y + size - r);
+            ctx.quadraticCurveTo(x + size, y + size, x + size - r, y + size);
+            ctx.lineTo(x + r, y + size);
+            ctx.quadraticCurveTo(x, y + size, x, y + size - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        // Custom high-quality vector neon glow stroke function
+        function drawNeonSquircle(ctx, x, y, size, r, colorOuter, colorInner) {
+            ctx.save();
+            
+            // Pass 1: Saturated outer volumetric glow
+            ctx.shadowColor = colorOuter;
+            ctx.shadowBlur = 35;
+            ctx.strokeStyle = colorOuter;
+            ctx.lineWidth = 12;
+            ctx.lineJoin = 'round';
+            drawSquircle(ctx, x, y, size, r);
+            ctx.stroke();
+
+            // Pass 2: Hot core discharge glow
+            ctx.shadowBlur = 15;
+            ctx.strokeStyle = colorInner;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            // Pass 3: White-hot central path
+            ctx.shadowBlur = 4;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
         function draw() {
             bgCtx.clearRect(0, 0, width, height);
             beerCtx.clearRect(0, 0, width, height);
@@ -922,8 +1345,8 @@
             bgCtx.fillStyle = '#120905';
             bgCtx.fillRect(0, floorY, width, 8);
 
-            // Draw Brass Tap Spigot Nozzle
-            const tapX = width / 2;
+            // Draw Brass Tap Spigot Nozzle in the Top Right Corner
+            const tapX = width - 150;
             bgCtx.fillStyle = '#cda142'; 
             bgCtx.fillRect(tapX - 60, 0, 120, 20); 
             bgCtx.fillRect(tapX - 12, 20, 24, 38); 
@@ -971,6 +1394,92 @@
                 }
             }
             foamCtx.fill();
+
+            // Render Floating Squircle Sign (On glass canvas for overlay visibility)
+            glassCtx.save();
+            
+            // 1. Wires hanging down from the ceiling (spaced to match scaled size)
+            glassCtx.strokeStyle = '#1e1e1e';
+            glassCtx.lineWidth = 3;
+            glassCtx.beginPath();
+            // Left Cable
+            glassCtx.moveTo(logo.x - 70, 0);
+            glassCtx.lineTo(logo.x - 70, logo.y - logo.size / 2 + 10);
+            // Right Cable
+            glassCtx.moveTo(logo.x + 70, 0);
+            glassCtx.lineTo(logo.x + 70, logo.y - logo.size / 2 + 10);
+            glassCtx.stroke();
+
+            // 2. Heavy Sign Shadow & Chassis Plate
+            glassCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+            glassCtx.shadowBlur = 24;
+            glassCtx.shadowOffsetY = 12;
+
+            const logoX = logo.x - logo.size / 2;
+            const logoY = logo.y - logo.size / 2;
+            const logoOuterRadius = logo.r + 5;
+
+            // Matte-black obsidian chassis backing
+            glassCtx.fillStyle = 'rgba(12, 12, 12, 0.94)';
+            glassCtx.lineWidth = 6;
+            glassCtx.strokeStyle = '#222222';
+            drawSquircle(glassCtx, logoX, logoY, logo.size, logoOuterRadius);
+            glassCtx.fill();
+            glassCtx.stroke();
+
+            // Disable standard blur for inner details
+            glassCtx.shadowBlur = 0;
+            glassCtx.shadowOffsetY = 0;
+
+            // Inner framing accent bezel
+            glassCtx.lineWidth = 2.5;
+            glassCtx.strokeStyle = '#3a3a3a';
+            drawSquircle(glassCtx, logoX + 5, logoY + 5, logo.size - 10, logoOuterRadius - 2);
+            glassCtx.stroke();
+
+            // 3. Render Neon Border (Deep Orange / Amber glow theme)
+            drawNeonSquircle(glassCtx, logoX + 16, logoY + 16, logo.size - 32, logoOuterRadius - 8, '#ff3c00', '#ff9f3b');
+
+            // 4. Render organic color-sensitive "bloom" glow matching internal image colors
+            if (logoLoaded) {
+                glassCtx.save();
+                // Apply a saturation-enhanced blur filter underneath the sharp image
+                glassCtx.filter = 'blur(18px) saturate(2.0) brightness(1.5)';
+                glassCtx.globalCompositeOperation = 'screen'; // Organic additive light blend
+                glassCtx.drawImage(logoImg, logoX + 30, logoY + 30, logo.size - 60, logo.size - 60);
+                glassCtx.restore();
+            }
+
+            // 5. Clip area inside neon boundary to map sharp logo graphic
+            glassCtx.save();
+            drawSquircle(glassCtx, logoX + 30, logoY + 30, logo.size - 60, logoOuterRadius - 16);
+            glassCtx.clip();
+
+            if (logoLoaded) {
+                // Draw custom logo asset inside glowing window
+                glassCtx.drawImage(logoImg, logoX + 30, logoY + 30, logo.size - 60, logo.size - 60);
+            } else {
+                // Custom glowing vector fallback artwork with matched organic neon emission
+                glassCtx.fillStyle = '#1c1c1c';
+                glassCtx.fillRect(logoX, logoY, logo.size, logo.size);
+
+                glassCtx.shadowColor = '#ff6c00';
+                glassCtx.shadowBlur = 25; // Large glowing fallback bloom
+                glassCtx.fillStyle = '#ff6c00';
+                glassCtx.font = 'bold 50px sans-serif';
+                glassCtx.textAlign = 'center';
+                glassCtx.textBaseline = 'middle';
+                glassCtx.fillText('🐱', logo.x, logo.y - 25);
+
+                glassCtx.shadowColor = '#ffffff';
+                glassCtx.shadowBlur = 10;
+                glassCtx.fillStyle = '#ffffff';
+                glassCtx.font = 'bold 24px sans-serif';
+                glassCtx.fillText('BeerCat', logo.x, logo.y + 45);
+            }
+
+            glassCtx.restore(); // Exit clipped space
+            glassCtx.restore(); // Exit shadow state
 
             // Draw Crisp Glass elements on top
             glassCtx.save();
@@ -1087,11 +1596,11 @@
         tapBtn.addEventListener('click', () => {
             isPouring = !isPouring;
             if (isPouring) {
-                tapBtn.innerHTML = '🛑 Close Tap';
+                tapBtn.innerHTML = '<span class="emoji">🛑</span><span class="btn-text">Close Tap</span>';
                 tapBtn.style.background = 'rgba(212, 10, 10, 0.25)';
                 tapBtn.style.borderColor = 'rgba(212, 10, 10, 0.5)';
             } else {
-                tapBtn.innerHTML = '🍺 Open Tap';
+                tapBtn.innerHTML = '<span class="emoji">🍺</span><span class="btn-text">Open Tap</span>';
                 tapBtn.style.background = 'rgba(212, 120, 10, 0.25)';
                 tapBtn.style.borderColor = 'rgba(212, 120, 10, 0.5)';
             }
