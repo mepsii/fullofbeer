@@ -7,6 +7,9 @@
     <title>fullof.beer</title>
     <link class="favicon" rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>">
     
+    <!-- Google Fonts Imports: Heavy-Legibility Vintage/Saloon Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Arbutus+Slab&family=Ultra&display=swap" rel="stylesheet">
+    
     <style>
         * {
             box-sizing: border-box;
@@ -69,13 +72,13 @@
             pointer-events: none; /* Let drag events fall through outside the card */
             text-align: center;
             width: 90%;
-            max-width: 550px;
+            max-width: 500px; /* Tightened bounding box */
         }
         .ui-card {
             background: rgba(12, 12, 12, 0.35); /* More transparent card background */
             border: 1px solid rgba(212, 120, 10, 0.12); /* Extremely subtle, immersion-safe border */
-            border-radius: 12px;
-            padding: 16px 30px;
+            border-radius: 10px;
+            padding: 12px 25px; /* Shrunk down and preserved padding */
             pointer-events: auto; /* Restore interaction for text if needed */
             backdrop-filter: blur(4px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
@@ -85,19 +88,28 @@
             width: 100%;
         }
         h1 {
-            margin: 0 0 4px 0;
-            font-size: 1.8rem; /* Scaled up header font */
-            font-weight: 600;
+            margin: 0 0 6px 0; /* Tightened vertical gap */
+            font-family: 'Ultra', serif; /* Solid, thick vintage American wood type */
+            font-size: 1.95rem; /* Scaled up for better visibility */
+            font-weight: normal;
             letter-spacing: 0.5px;
             color: #ffe0a3;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            text-shadow: 0 3px 6px rgba(0,0,0,0.9);
+            line-height: 1.25;
         }
-        p {
-            margin: 0;
-            font-size: 0.95rem;
+        .subtext-main {
+            margin: 0 0 3px 0; /* Tightened spacing above the secondary subtext */
+            font-family: 'Arbutus Slab', serif; /* Sturdy, clean 19th-century billboard slab */
+            font-size: 1.05rem; /* Scaled up for readability */
             color: #bfa38a;
             text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-            font-weight: 500;
+        }
+        .subtext-sub {
+            margin: 0;
+            font-family: 'Arbutus Slab', serif;
+            font-size: 0.8rem; /* Scaled up for readability */
+            color: rgba(191, 163, 138, 0.65); /* Slightly muted, transparent shade for visual hierarchy */
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
         
         /* Dedicated Sidebar Controls on the Right Edge */
@@ -293,8 +305,9 @@
 
     <div class="ui-container">
         <div class="ui-card">
-            <h1>have a beer while you browse</h1>
-            <p>welcome to fullof.beer</p>
+            <h1>>have a beer while you browse,</h1>
+            <p class="subtext-main">>welcome to fullof.beer</p>
+            <p class="subtext-sub">>more to come</p>
         </div>
     </div>
 
