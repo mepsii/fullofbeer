@@ -241,20 +241,37 @@
             white-space: nowrap;
         }
 
+        .mobile-header {
+            display: none !important;
+        }
+
+        /* Mobile specific Sequential Footer Element */
+        .mobile-footer {
+            display: none;
+        }
+
         /* Responsive styling to ensure buttons don't block canvas on mobile */
         @media (max-width: 768px) {
             body, html {
                 overflow-y: auto !important;
                 height: auto !important;
-                min-height: 100vh;
+                min-height: 100vh !important;
+                -webkit-overflow-scrolling: touch;
             }
             .canvas-container {
-                height: 1400px; /* Make canvas scrollable on mobile */
+                height: 100vh !important; /* Adjust dynamically to the device's vertical screen size */
+                touch-action: auto !important;
             }
             .ui-container {
                 top: 175px !important; /* Move header text directly underneath the smaller logo */
                 transform: translateX(-50%) !important;
                 position: absolute !important;
+            }
+            .desktop-header {
+                display: none !important;
+            }
+            .mobile-header {
+                display: block !important;
             }
             h1 {
                 font-size: 1.4rem !important;
@@ -266,17 +283,33 @@
                 font-size: 0.75rem !important;
             }
             .right-controls {
-                top: auto;
-                bottom: 140px; /* Position safely above bottom tilt triggers */
-                right: 20px;
-                transform: none;
-                flex-direction: row; /* Horizontal button layout */
-                gap: 10px;
-                align-items: center;
+                position: fixed !important; /* Locked to the viewport bottom */
+                top: auto !important;
+                bottom: 20px !important; 
+                right: 20px !important;
+                transform: none !important;
+                flex-direction: row !important; /* Horizontal layout parallel to tilt keys */
+                gap: 10px !important;
+                align-items: center !important;
+                z-index: 100 !important; /* Forces overlays on top of the Canvas & Glass outlines */
+            }
+            .mobile-controls {
+                position: fixed !important; /* Locked to the viewport bottom */
+                bottom: 20px !important; 
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                display: flex !important;
+                gap: 15px !important;
+                z-index: 100 !important;
+            }
+            .tilt-btn {
+                width: 50px !important; 
+                height: 50px !important;
+                font-size: 1.1rem !important;
             }
             /* Damped hover on mobile since hover is triggered by tap */
             .right-controls button:hover {
-                max-width: 45px; /* Retains circular profile on mobile to prevent sticky-hover bloating */
+                max-width: 45px; /* Retains circular profile on mobile */
                 padding: 10px;
                 transform: scale(1.1);
             }
@@ -290,6 +323,38 @@
             }
             #spawnShotBtn {
                 display: none !important;
+            }
+            /* Hide desktop absolute overlays */
+            .github-link, .gemini-credit {
+                display: none !important;
+            }
+            /* Sequential layout footer aligned to the left on mobile to prevent overlapping with floating buttons */
+            .mobile-footer {
+                display: flex;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                justify-content: center !important;
+                gap: 8px !important; /* Clean vertical line-break gap */
+                padding-left: 20px !important;
+                background: #121212; /* Seamless integration with bottom gradient vignette */
+                border-top: 1px solid rgba(212, 120, 10, 0.15); /* Ambient copper/amber divider line */
+                color: #bfa38a;
+                font-family: 'Arbutus Slab', serif;
+                font-size: 0.85rem;
+                font-weight: 500;
+                width: 100%;
+                height: 85px;
+                position: relative;
+                z-index: 10;
+            }
+            .mobile-footer a {
+                color: #ff9f3b !important; /* Standout copper/amber color to show it is a link */
+                text-decoration: underline !important;
+                font-weight: bold;
+                transition: color 0.15s ease;
+            }
+            .mobile-footer a:hover {
+                color: #ffe0a3 !important;
             }
         }
         @media (min-width: 768px) {
@@ -330,7 +395,8 @@
 
     <div class="ui-container">
         <div class="ui-card">
-            <h1>>have a beer while you browse,</h1>
+            <h1 class="desktop-header">>have a beer while you browse,</h1>
+            <h1 class="mobile-header">>stop in for a shot while you browse,</h1>
             <p class="subtext-main">>welcome to fullof.beer</p>
             <p class="subtext-sub">>more to come</p>
         </div>
@@ -354,12 +420,12 @@
         <button class="tilt-btn" id="tiltRight">↻</button>
     </div>
 
-    <!-- Centered Credit Text -->
+    <!-- Centered Credit Text (Desktop only) -->
     <div class="gemini-credit">
         made with gemini
     </div>
 
-    <!-- Right-aligned GitHub Link -->
+    <!-- Right-aligned GitHub Link (Desktop only) -->
     <div class="github-link">
         <a href="https://github.com/mepsii" target="_blank" rel="noopener noreferrer">github</a>
     </div>
@@ -370,6 +436,14 @@
         <canvas id="foamCanvas"></canvas>
         <canvas id="glassCanvas"></canvas>
     </div>
+
+    <!-- Mobile-only Footer sitting sequentially beneath the wooden bar -->
+    <footer class="mobile-footer">
+        <div class="gemini-credit-mobile">made with gemini</div>
+        <div class="github-link-mobile">
+            <a href="https://github.com/mepsii" target="_blank" rel="noopener noreferrer">github</a>
+        </div>
+    </footer>
 
     <script>
         const container = document.getElementById('container');
@@ -603,7 +677,7 @@
             const mobile = window.innerWidth <= 768;
 
             width = bgCanvas.width = beerCanvas.width = foamCanvas.width = glassCanvas.width = window.innerWidth;
-            height = bgCanvas.height = beerCanvas.height = foamCanvas.height = glassCanvas.height = mobile ? 1400 : window.innerHeight;
+            height = bgCanvas.height = beerCanvas.height = foamCanvas.height = glassCanvas.height = window.innerHeight;
             
             gridWidth = Math.ceil(width / H);
             gridHeight = Math.ceil(height / H);
@@ -902,10 +976,12 @@
                 const gl = glasses[gIdx];
 
                 if (mouse.isDown && gl.isDragging) {
-                    gl.targetX = mouse.x - gl.dragOffsetX;
-                    gl.targetY = mouse.y - gl.dragOffsetY;
+                    // Keep target coordinates strictly clamped inside canvas viewport borders
+                    gl.targetX = Math.max(gl.rTop + 10, Math.min(width - gl.rTop - 10, mouse.x - gl.dragOffsetX));
+                    gl.targetY = Math.max(gl.height + 10, Math.min(floorY - (gl.type === 'shot' ? 15 : 20), mouse.y - gl.dragOffsetY));
                     gl.targetTheta = -gl.vx * 0.022;
                 } else {
+                    gl.targetX = Math.max(gl.rTop + 10, Math.min(width - gl.rTop - 10, gl.targetX));
                     gl.targetY = Math.min(floorY - (gl.type === 'shot' ? 15 : 20), gl.targetY);
                     gl.targetTheta *= 0.88;
                 }
@@ -1900,6 +1976,11 @@
                 selectedGlass.isDragging = true;
                 selectedGlass.dragOffsetX = pos.x - selectedGlass.x;
                 selectedGlass.dragOffsetY = pos.y - selectedGlass.y;
+                
+                // Block native window scrolling gestures ONLY if the user clicked inside glass bounds
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
             }
         }
 
@@ -1907,6 +1988,19 @@
             const pos = getEventPos(e);
             mouse.x = pos.x;
             mouse.y = pos.y;
+
+            let anyDragging = false;
+            for (let gIdx = 0; gIdx < glasses.length; gIdx++) {
+                if (glasses[gIdx].isDragging) {
+                    anyDragging = true;
+                    break;
+                }
+            }
+
+            // Block native window scrolling gestures ONLY when dragging a glass
+            if (anyDragging && e.cancelable) {
+                e.preventDefault();
+            }
         }
 
         function onEnd() {
@@ -1920,8 +2014,9 @@
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onEnd);
 
-        container.addEventListener('touchstart', onStart, { passive: true });
-        window.addEventListener('touchmove', onMove, { passive: true });
+        // Registered with { passive: false } to allow dynamic preventDefault scrolling overrides
+        container.addEventListener('touchstart', onStart, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
         window.addEventListener('touchend', onEnd);
 
         // Continuous keyboard state listeners
