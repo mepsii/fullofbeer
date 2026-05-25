@@ -360,6 +360,7 @@
         const GRAVITY = 0.55;           
         const H = 12.0;                 // SPH interaction radius
         const H_SQ = H * H;
+        const INV_H = 1.0 / H;          // Precomputed reciprocal of interaction radius
         const STIFFNESS = 0.08;         
         const STIFFNESS_NEAR = 0.15;    
         const REST_DENSITY = 3.0;       
@@ -425,10 +426,33 @@
             r: 45      // corner radius
         };
 
+        // Offscreen canvas to cache blurred neon bloom
+        const bloomCanvas = document.createElement('canvas');
+        const bloomCtx = bloomCanvas.getContext('2d');
+
+        function createBloomCache() {
+            const pad = 40;
+            bloomCanvas.width = logo.size + pad * 2;
+            bloomCanvas.height = logo.size + pad * 2;
+            
+            bloomCtx.clearRect(0, 0, bloomCanvas.width, bloomCanvas.height);
+            bloomCtx.save();
+            bloomCtx.filter = 'blur(18px) saturate(2.0) brightness(1.5)';
+            bloomCtx.drawImage(logoImg, pad + 30, pad + 30, logo.size - 60, logo.size - 60);
+            bloomCtx.restore();
+        }
+
         const logoImg = new Image();
         logoImg.src = 'beercat.png';
         let logoLoaded = false;
-        logoImg.onload = () => { logoLoaded = true; };
+        logoImg.onload = () => { 
+            logoLoaded = true; 
+            createBloomCache();
+        };
+        if (logoImg.complete) {
+            logoLoaded = true;
+            createBloomCache();
+        }
 
         // Spatial Hashing Grid buffers
         const MAX_GRID_CELLS = 200000;
@@ -444,6 +468,25 @@
         // Position-Based Dynamics (PBD) Displacement accumulators
         const dispX = new Float32Array(MAX_PARTICLES);
         const dispY = new Float32Array(MAX_PARTICLES);
+
+        // Spatial Hash precalculated coordinate grids to save math
+        const gridXBuffer = new Int32Array(MAX_PARTICLES);
+        const gridYBuffer = new Int32Array(MAX_PARTICLES);
+
+        // Pre-allocated cached neighbor pair lists to eliminate redundant searches
+        const MAX_PAIRS = 250000;
+        const pairI = new Int32Array(MAX_PAIRS);
+        const pairJ = new Int32Array(MAX_PAIRS);
+        const pairDist = new Float32Array(MAX_PAIRS);
+        const pairQ = new Float32Array(MAX_PAIRS);
+        const pairRx = new Float32Array(MAX_PAIRS);
+        const pairRy = new Float32Array(MAX_PAIRS);
+        let activePairs = 0;
+
+        // Pre-allocated viscosity accumulation arrays to avoid garbage collection
+        const vxAvgBuffer = new Float32Array(MAX_PARTICLES);
+        const vyAvgBuffer = new Float32Array(MAX_PARTICLES);
+        const weightSumBuffer = new Float32Array(MAX_PARTICLES);
 
         // Glass Object Physics
         const glass = {
@@ -463,6 +506,31 @@
 
         const mouse = { x: 0, y: 0, isDown: false };
         const keys = { Left: false, Right: false };
+
+        // Global precomputed trig values for the glass rotation
+        let glassCos = 1.0;
+        let glassSin = 0.0;
+        
+        function updateGlassAngles() {
+            glassCos = Math.cos(glass.theta);
+            glassSin = Math.sin(glass.theta);
+        }
+
+        function localToWorld(u, v) {
+            return {
+                x: glass.x + u * glassCos + v * glassSin,
+                y: glass.y + u * glassSin - v * glassCos
+            };
+        }
+
+        function worldToLocal(wx, wy) {
+            const dx = wx - glass.x;
+            const dy = wy - glass.y;
+            return {
+                u: dx * glassCos + dy * glassSin,
+                v: dx * glassSin - dy * glassCos
+            };
+        }
 
         function resize() {
             const oldHeight = height;
@@ -557,13 +625,13 @@
             activeBubbles--;
         }
 
-        // Signed Distance Field (SDF) of a rounded box (squircle)
+        // Signed Distance Field (SDF) of a rounded box (squircle) - Optimized with Math.sqrt
         function sdRoundedBox(px, py, cx, cy, hw, hh, r) {
             const dx = Math.abs(px - cx) - (hw - r);
             const dy = Math.abs(py - cy) - (hh - r);
             const mx = Math.max(dx, 0);
             const my = Math.max(dy, 0);
-            const distToOuterCorner = Math.hypot(mx, my);
+            const distToOuterCorner = Math.sqrt(mx * mx + my * my);
             const distToEdgeInside = Math.min(Math.max(dx, dy), 0);
             return distToOuterCorner + distToEdgeInside - r;
         }
@@ -595,12 +663,11 @@
             ];
 
             let maxWorldY = -999999;
-            const cosT = Math.cos(glass.theta);
-            const sinT = Math.sin(glass.theta);
+            updateGlassAngles();
 
             for (let i = 0; i < boundaryPoints.length; i++) {
                 const pt = boundaryPoints[i];
-                const wY = glass.y + pt.u * sinT - pt.v * cosT;
+                const wY = glass.y + pt.u * glassSin - pt.v * glassCos;
                 if (wY > maxWorldY) {
                     maxWorldY = wY;
                 }
@@ -662,27 +729,6 @@
             }
         }
 
-        // Coordinate Mapping Helpers
-        function localToWorld(u, v) {
-            const cos = Math.cos(glass.theta);
-            const sin = Math.sin(glass.theta);
-            return {
-                x: glass.x + u * cos + v * sin,
-                y: glass.y + u * sin - v * cos
-            };
-        }
-
-        function worldToLocal(wx, wy) {
-            const dx = wx - glass.x;
-            const dy = wy - glass.y;
-            const cos = Math.cos(glass.theta);
-            const sin = Math.sin(glass.theta);
-            return {
-                u: dx * cos + dy * sin,
-                v: dx * sin - dy * cos
-            };
-        }
-
         function updatePhysics() {
             const floorY = height - 80;
 
@@ -737,6 +783,9 @@
                 glass.y += glass.vy * dt;
                 glass.theta += glass.vtheta * dt;
 
+                // Precompute dynamic trig structures for this physics substep
+                updateGlassAngles();
+
                 // --- Glass-to-Table collision resolution ---
                 const R_top_o = R_TOP + 5; 
                 const R_base_o = R_BASE + 5; 
@@ -763,12 +812,9 @@
                 let lowestU = 0;
                 let lowestV = 0;
 
-                const cosT = Math.cos(glass.theta);
-                const sinT = Math.sin(glass.theta);
-
                 for (let i = 0; i < boundaryPoints.length; i++) {
                     const pt = boundaryPoints[i];
-                    const wY = glass.y + pt.u * sinT - pt.v * cosT;
+                    const wY = glass.y + pt.u * glassSin - pt.v * glassCos;
                     if (wY > maxWorldY) {
                         maxWorldY = wY;
                         lowestU = pt.u;
@@ -781,8 +827,7 @@
                     glass.y -= penetration; // Positional correction to prevent clipping
 
                     // Find translation relative to center-of-mass pivot (glass.x, glass.y)
-                    const rx = lowestU * cosT + lowestV * sinT;
-                    const ry = lowestU * sinT - lowestV * cosT;
+                    const rx = lowestU * glassCos + lowestV * glassSin;
 
                     // Contact point velocity relative to table top
                     const relVelY = glass.vy + glass.vtheta * rx;
@@ -811,8 +856,8 @@
 
                 for (let i = 0; i < boundaryPoints.length; i++) {
                     const pt = boundaryPoints[i];
-                    const wX = glass.x + pt.u * cosT + pt.v * sinT;
-                    const wY = glass.y + pt.u * sinT - pt.v * cosT;
+                    const wX = glass.x + pt.u * glassCos + pt.v * glassSin;
+                    const wY = glass.y + pt.u * glassSin - pt.v * glassCos;
 
                     const sd = sdRoundedBox(wX, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r);
                     if (sd < glassThicknessMargin) {
@@ -826,7 +871,7 @@
                             const eps = 0.5;
                             const dX = sdRoundedBox(wX + eps, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(wX - eps, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r);
                             const dY = sdRoundedBox(wX, wY + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(wX, wY - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                            const len = Math.hypot(dX, dY) || 0.001;
+                            const len = Math.sqrt(dX * dX + dY * dY) || 0.001;
                             colNormalLogoX = dX / len;
                             colNormalLogoY = dY / len;
                         }
@@ -919,7 +964,7 @@
                     p.y += p.vy * dt;
                 }
 
-                // Step 2: Build Spatial Hashing Grid
+                // Step 2: Build Spatial Hashing Grid (Pre-cache particle coordinates)
                 const numCells = gridWidth * gridHeight;
                 if (numCells < MAX_GRID_CELLS) {
                     grid.subarray(0, numCells).fill(-1);
@@ -929,8 +974,10 @@
 
                 for (let i = 0; i < activeCount; i++) {
                     const p = particlePool[i];
-                    const gx = Math.floor(p.x / H);
-                    const gy = Math.floor(p.y / H);
+                    const gx = Math.floor(p.x * INV_H);
+                    const gy = Math.floor(p.y * INV_H);
+                    gridXBuffer[i] = gx;
+                    gridYBuffer[i] = gy;
                     if (gx >= 0 && gx < gridWidth && gy >= 0 && gy < gridHeight) {
                         const cellIdx = gx + gy * gridWidth;
                         next[i] = grid[cellIdx];
@@ -940,115 +987,115 @@
                     }
                 }
 
-                // Step 3: Calculate Local SPH Densities
+                // Step 3: Calculate Local SPH Densities & Build Cached Pair List (Saves 50% loop searches)
+                densityBuffer.subarray(0, activeCount).fill(0);
+                nearDensityBuffer.subarray(0, activeCount).fill(0);
+                foamSubmersion.subarray(0, activeCount).fill(0);
+                activePairs = 0;
+
                 for (let i = 0; i < activeCount; i++) {
                     const p = particlePool[i];
-                    const gx = Math.floor(p.x / H);
-                    const gy = Math.floor(p.y / H);
+                    const gx = gridXBuffer[i];
+                    const gy = gridYBuffer[i];
                     
-                    let dens = 0;
-                    let nearDens = 0;
-                    let submersion = 0;
-
                     for (let dy = -1; dy <= 1; dy++) {
+                        const ny = gy + dy;
+                        if (ny < 0 || ny >= gridHeight) continue;
+                        const rowOffset = ny * gridWidth;
                         for (let dx = -1; dx <= 1; dx++) {
                             const nx = gx + dx;
-                            const ny = gy + dy;
-                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
-                                const cellIdx = nx + ny * gridWidth;
-                                let j = grid[cellIdx];
-                                while (j !== -1) {
-                                    if (i !== j) {
-                                        const pj = particlePool[j];
-                                        const rx = pj.x - p.x;
-                                        const ry = pj.y - p.y;
-                                        const distSq = rx * rx + ry * ry;
-                                        if (distSq < H_SQ) {
-                                            const dist = Math.sqrt(distSq) || 0.1;
-                                            const q = 1.0 - (dist / H);
-                                            dens += q * q;
-                                            nearDens += q * q * q;
-                                            if (p.type === 'foam' && pj.type === 'beer') {
-                                                submersion += q * q;
-                                            }
+                            if (nx < 0 || nx >= gridWidth) continue;
+                            const cellIdx = nx + rowOffset;
+                            let j = grid[cellIdx];
+                            while (j !== -1) {
+                                if (j > i) {
+                                    const pj = particlePool[j];
+                                    const rx = pj.x - p.x;
+                                    const ry = pj.y - p.y;
+                                    const distSq = rx * rx + ry * ry;
+                                    if (distSq < H_SQ) {
+                                        const dist = Math.sqrt(distSq) || 0.1;
+                                        const q = 1.0 - (dist * INV_H);
+                                        const q2 = q * q;
+                                        const q3 = q2 * q;
+
+                                        densityBuffer[i] += q2;
+                                        densityBuffer[j] += q2;
+
+                                        nearDensityBuffer[i] += q3;
+                                        nearDensityBuffer[j] += q3;
+
+                                        if (p.type === 'foam' && pj.type === 'beer') {
+                                            foamSubmersion[i] += q2;
+                                        } else if (pj.type === 'foam' && p.type === 'beer') {
+                                            foamSubmersion[j] += q2;
+                                        }
+
+                                        // Store interacting pair parameters to bypass grid search in Steps 4 and 5
+                                        if (activePairs < MAX_PAIRS) {
+                                            pairI[activePairs] = i;
+                                            pairJ[activePairs] = j;
+                                            pairDist[activePairs] = dist;
+                                            pairQ[activePairs] = q;
+                                            pairRx[activePairs] = rx;
+                                            pairRy[activePairs] = ry;
+                                            activePairs++;
                                         }
                                     }
-                                    j = next[j];
                                 }
+                                j = next[j];
                             }
                         }
                     }
-                    densityBuffer[i] = dens;
-                    nearDensityBuffer[i] = nearDens;
-                    foamSubmersion[i] = submersion;
                 }
 
-                // Step 4: SPH Relaxation & Displacement accumulation
+                // Step 4: SPH Relaxation & Displacement (Bypasses grid traversal entirely via cached pairs)
                 dispX.fill(0);
                 dispY.fill(0);
 
-                for (let i = 0; i < activeCount; i++) {
+                for (let idx = 0; idx < activePairs; idx++) {
+                    const i = pairI[idx];
+                    const j = pairJ[idx];
+                    const dist = pairDist[idx];
+                    const q = pairQ[idx];
+                    const rx = pairRx[idx];
+                    const ry = pairRy[idx];
+
                     const p = particlePool[i];
-                    const dens = densityBuffer[i];
-                    const nearDens = nearDensityBuffer[i];
+                    const pj = particlePool[j];
 
-                    const press = STIFFNESS * (dens - REST_DENSITY);
-                    const pressNear = STIFFNESS_NEAR * nearDens;
-
-                    const gx = Math.floor(p.x / H);
-                    const gy = Math.floor(p.y / H);
-
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            const nx = gx + dx;
-                            const ny = gy + dy;
-                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
-                                const cellIdx = nx + ny * gridWidth;
-                                let j = grid[cellIdx];
-                                while (j !== -1) {
-                                    if (j > i) { 
-                                        const pj = particlePool[j];
-                                        const rx = pj.x - p.x;
-                                        const ry = pj.y - p.y;
-                                        const distSq = rx * rx + ry * ry;
-                                        if (distSq < H_SQ) {
-                                            const dist = Math.sqrt(distSq) || 0.1;
-                                            const q = 1.0 - (dist / H);
-                                            
-                                            let force = (press + pressNear * q) * q * dt * dt;
-                                            
-                                            // Soften SPH repulsion for foam interactions (prevents clumping/harsh separation)
-                                            if (p.type === 'foam' && pj.type === 'foam') {
-                                                force *= 0.15; 
-                                            } else if ((p.type === 'foam' && pj.type === 'beer') || (p.type === 'beer' && pj.type === 'foam')) {
-                                                force *= 0.30;
-                                            }
-
-                                            // Cohesive Phase-Locking interactions (Glues foam head to beer surface)
-                                            if (p.type === 'beer' && pj.type === 'beer') {
-                                                force -= COHESION * q * q * dt * dt;
-                                            } else if (p.type === 'foam' && pj.type === 'foam') {
-                                                force -= COHESION_FOAM * q * q * dt * dt;
-                                            } else {
-                                                force -= ADHESION * q * q * dt * dt; // Soft Adhesion
-                                            }
-
-                                            force = Math.max(-0.6, Math.min(0.6, force));
-
-                                            const fx = (rx / dist) * force;
-                                            const fy = (ry / dist) * force;
-
-                                            dispX[i] -= fx;
-                                            dispY[i] -= fy;
-                                            dispX[j] += fx;
-                                            dispY[j] += fy;
-                                        }
-                                    }
-                                    j = next[j];
-                                }
-                            }
-                        }
+                    const press = STIFFNESS * (densityBuffer[i] - REST_DENSITY);
+                    const pressNear = STIFFNESS_NEAR * nearDensityBuffer[i];
+                    
+                    let force = (press + pressNear * q) * q * dt * dt;
+                    
+                    // Soften SPH repulsion for foam interactions (prevents clumping/harsh separation)
+                    if (p.type === 'foam' && pj.type === 'foam') {
+                        force *= 0.15; 
+                    } else if ((p.type === 'foam' && pj.type === 'beer') || (p.type === 'beer' && pj.type === 'foam')) {
+                        force *= 0.30;
                     }
+
+                    // Cohesive Phase-Locking interactions (Glues foam head to beer surface)
+                    if (p.type === 'beer' && pj.type === 'beer') {
+                        force -= COHESION * q * q * dt * dt;
+                    } else if (p.type === 'foam' && pj.type === 'foam') {
+                        force -= COHESION_FOAM * q * q * dt * dt;
+                    } else {
+                        force -= ADHESION * q * q * dt * dt; // Soft Adhesion
+                    }
+
+                    force = Math.max(-0.6, Math.min(0.6, force));
+
+                    // Micro-optimized reciprocal division
+                    const fOverDist = force / dist;
+                    const fx = rx * fOverDist;
+                    const fy = ry * fOverDist;
+
+                    dispX[i] -= fx;
+                    dispY[i] -= fy;
+                    dispX[j] += fx;
+                    dispY[j] += fy;
                 }
 
                 // Apply accumulated displacements
@@ -1058,56 +1105,43 @@
                     p.y += dispY[i];
                 }
 
-                // Step 5: Smooth Viscosity step (XSPH - handles internal shear viscosity creaminess)
+                // Step 5: Smooth Viscosity step (XSPH - Bypasses grid traversal via cached pairs)
+                vxAvgBuffer.subarray(0, activeCount).fill(0);
+                vyAvgBuffer.subarray(0, activeCount).fill(0);
+                weightSumBuffer.subarray(0, activeCount).fill(0);
+
+                for (let idx = 0; idx < activePairs; idx++) {
+                    const i = pairI[idx];
+                    const j = pairJ[idx];
+                    const q = pairQ[idx];
+
+                    const p = particlePool[i];
+                    const pj = particlePool[j];
+
+                    vxAvgBuffer[i] += pj.vx * q;
+                    vyAvgBuffer[i] += pj.vy * q;
+                    weightSumBuffer[i] += q;
+
+                    vxAvgBuffer[j] += p.vx * q;
+                    vyAvgBuffer[j] += p.vy * q;
+                    weightSumBuffer[j] += q;
+                }
+
                 for (let i = 0; i < activeCount; i++) {
                     const p = particlePool[i];
-                    const gx = Math.floor(p.x / H);
-                    const gy = Math.floor(p.y / H);
-                    
-                    let vxAvg = 0;
-                    let vyAvg = 0;
-                    let weightSum = 0;
-
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            const nx = gx + dx;
-                            const ny = gy + dy;
-                            if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
-                                const cellIdx = nx + ny * gridWidth;
-                                let j = grid[cellIdx];
-                                while (j !== -1) {
-                                    if (i !== j) {
-                                        const pj = particlePool[j];
-                                        const rx = pj.x - p.x;
-                                        const ry = pj.y - p.y;
-                                        if (rx * rx + ry * ry < H_SQ) {
-                                            const dist = Math.sqrt(rx * rx + ry * ry) || 0.1;
-                                            const q = 1.0 - (dist / H);
-                                            vxAvg += pj.vx * q;
-                                            vyAvg += pj.vy * q;
-                                            weightSum += q;
-                                        }
-                                    }
-                                    j = next[j];
-                                }
-                            }
-                        }
-                    }
+                    const weightSum = weightSumBuffer[i];
                     if (weightSum > 0) {
-                        vxAvg /= weightSum;
-                        vyAvg /= weightSum;
+                        const vxAvg = vxAvgBuffer[i] / weightSum;
+                        const vyAvg = vyAvgBuffer[i] / weightSum;
                         
                         // Relative internal shear damping (viscosity) makes foam clump cream-like
-                        let vFactor = VISCOSITY;
-                        if (p.type === 'foam') {
-                            vFactor = 0.25; // High relative viscosity keeps foam unified, yet preserves momentum
-                        }
+                        const vFactor = p.type === 'foam' ? 0.25 : VISCOSITY;
                         p.vx += (vxAvg - p.vx) * vFactor * dt;
                         p.vy += (vyAvg - p.vy) * vFactor * dt;
                     }
                 }
 
-                // Find local liquid height to pop rising bubbles
+                // Find local liquid height to pop rising bubbles (Precomputed trig speeds this loop up)
                 let maxLiquidV = 10;
                 for (let i = 0; i < activeCount; i++) {
                     const p = particlePool[i];
@@ -1133,36 +1167,43 @@
                         p.vx *= 0.5;
                     }
 
-                    // Obstacle Collision solver using dynamic squircle distance fields (SDF)
-                    const sd = sdRoundedBox(p.x, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                    // Obstacle Collision solver using dynamic squircle distance fields (SDF) with fast AABB pre-filter
                     const colDist = p.radius + 1.2; // Add soft clearance layer
-                    if (sd < colDist) {
-                        const penetration = colDist - sd;
-                        
-                        // Finite difference numerical boundary normal calculation
-                        const eps = 0.5;
-                        const dX = sdRoundedBox(p.x + eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x - eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                        const dY = sdRoundedBox(p.x, p.y + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x, p.y - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                        const len = Math.hypot(dX, dY) || 0.001;
-                        const nx = dX / len;
-                        const ny = dY / len;
+                    const distX = Math.abs(p.x - logo.x);
+                    const distY = Math.abs(p.y - logo.y);
+                    const margin = logo.hw + colDist + 5; // Bounding margin around squircle
 
-                        p.x += nx * penetration;
-                        p.y += ny * penetration;
+                    if (distX < margin && distY < margin) {
+                        const sd = sdRoundedBox(p.x, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                        if (sd < colDist) {
+                            const penetration = colDist - sd;
+                            
+                            // Finite difference numerical boundary normal calculation
+                            const eps = 0.5;
+                            const dX = sdRoundedBox(p.x + eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x - eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                            const dY = sdRoundedBox(p.x, p.y + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x, p.y - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
+                            const len = Math.sqrt(dX * dX + dY * dY) || 0.001;
+                            const invLen = 1.0 / len;
+                            const nx = dX * invLen;
+                            const ny = dY * invLen;
 
-                        const dot = p.vx * nx + p.vy * ny;
-                        if (dot < 0) {
-                            // Elastic bounce + friction
-                            p.vx -= 1.35 * dot * nx;
-                            p.vy -= 1.35 * dot * ny;
-                            p.vx *= 0.85; 
-                            p.vy *= 0.85;
+                            p.x += nx * penetration;
+                            p.y += ny * penetration;
 
-                            // Turn high velocity impacts into foam splashes
-                            if (p.type === 'beer' && Math.abs(dot) > 4.0 && Math.random() < 0.25) {
-                                p.type = 'foam';
-                                p.radius = 5.8;
-                                p.foamLife = 0.4 + Math.random() * 0.4;
+                            const dot = p.vx * nx + p.vy * ny;
+                            if (dot < 0) {
+                                // Elastic bounce + friction
+                                p.vx -= 1.35 * dot * nx;
+                                p.vy -= 1.35 * dot * ny;
+                                p.vx *= 0.85; 
+                                p.vy *= 0.85;
+
+                                // Turn high velocity impacts into foam splashes
+                                if (p.type === 'beer' && Math.abs(dot) > 4.0 && Math.random() < 0.25) {
+                                    p.type = 'foam';
+                                    p.radius = 5.8;
+                                    p.foamLife = 0.4 + Math.random() * 0.4;
+                                }
                             }
                         }
                     }
@@ -1208,7 +1249,7 @@
 
                         // Splash-to-foam transition
                         if (collided && p.type === 'beer') {
-                            const speed = Math.hypot(p.vx, p.vy);
+                            const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
                             if (speed > 7.0 && Math.random() < 0.04) {
                                 p.type = 'foam';
                                 p.radius = 5.8;
@@ -1246,10 +1287,11 @@
                     p.vx = (p.x - p.px) / dt;
                     p.vy = (p.y - p.py) / dt;
 
-                    const speed = Math.hypot(p.vx, p.vy);
+                    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
                     if (speed > 16.0) {
-                        p.vx = (p.vx / speed) * 16.0;
-                        p.vy = (p.vy / speed) * 16.0;
+                        const invSpeed = 16.0 / speed;
+                        p.vx *= invSpeed;
+                        p.vy *= invSpeed;
                     }
 
                     // Foam aging and dissolving (Only 1/3 equivalent volume turns to beer; 2/3 vanishes)
@@ -1381,8 +1423,7 @@
             bgCtx.arc(tapX + Math.sin(leverAngle) * 45, 15 - Math.cos(leverAngle) * 45, 8, 0, Math.PI * 2);
             bgCtx.fill();
 
-            // SINGLE-PATH GPU BATCH RENDERING (Draws entire pool in exactly 2 path operations)
-            const PI2 = Math.PI * 2;
+            // SINGLE-PATH GPU BATCH RENDERING (Uses squares 'rect' to bypass complex curves, blurred automatically by SVG)
             
             // 1. Draw clear golden beer
             beerCtx.fillStyle = '#ffb300';
@@ -1390,8 +1431,8 @@
             for (let i = 0; i < activeCount; i++) {
                 const p = particlePool[i];
                 if (p.type === 'beer') {
-                    beerCtx.moveTo(p.x + p.radius, p.y);
-                    beerCtx.arc(p.x, p.y, p.radius, 0, PI2);
+                    const r = p.radius;
+                    beerCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
                 }
             }
             beerCtx.fill();
@@ -1402,8 +1443,8 @@
             for (let i = 0; i < activeCount; i++) {
                 const p = particlePool[i];
                 if (p.type === 'foam') {
-                    foamCtx.moveTo(p.x + p.radius, p.y);
-                    foamCtx.arc(p.x, p.y, p.radius, 0, PI2);
+                    const r = p.radius;
+                    foamCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
                 }
             }
             foamCtx.fill();
@@ -1453,13 +1494,12 @@
             // 3. Render Neon Border (Deep Orange / Amber glow theme)
             drawNeonSquircle(glassCtx, logoX + 16, logoY + 16, logo.size - 32, logoOuterRadius - 8, '#ff3c00', '#ff9f3b');
 
-            // 4. Render organic color-sensitive "bloom" glow matching internal image colors
+            // 4. Render organic color-sensitive "bloom" glow (Optimized offscreen cache draws in < 1ms)
             if (logoLoaded) {
                 glassCtx.save();
-                // Apply a saturation-enhanced blur filter underneath the sharp image
-                glassCtx.filter = 'blur(18px) saturate(2.0) brightness(1.5)';
                 glassCtx.globalCompositeOperation = 'screen'; // Organic additive light blend
-                glassCtx.drawImage(logoImg, logoX + 30, logoY + 30, logo.size - 60, logo.size - 60);
+                const pad = 40;
+                glassCtx.drawImage(bloomCanvas, logoX - pad, logoY - pad);
                 glassCtx.restore();
             }
 
@@ -1559,7 +1599,7 @@
             mouse.y = pos.y;
             mouse.isDown = true;
 
-            const dist = Math.hypot(pos.x - glass.x, pos.y - (glass.y - GLASS_HEIGHT / 2));
+            const dist = Math.sqrt((pos.x - glass.x) * (pos.x - glass.x) + (pos.y - (glass.y - GLASS_HEIGHT / 2)) * (pos.y - (glass.y - GLASS_HEIGHT / 2)));
             if (dist < GLASS_HEIGHT * 0.9) {
                 glass.isDragging = true;
                 glass.dragOffsetX = pos.x - glass.x;
