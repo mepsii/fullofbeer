@@ -1,0 +1,353 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+}
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    /* Premium off-grey center transitioning into a dark vignette */
+    background: radial-gradient(circle, #2d2d2d 0%, #121212 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #f5f0eb;
+}
+.canvas-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+}
+.canvas-container:active {
+    cursor: grabbing;
+}
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+/* Separated liquid layers with independent 3D specular shading filters */
+#beerCanvas {
+    filter: url('#beer-goo');
+    z-index: 2;
+}
+#foamCanvas {
+    filter: url('#foam-goo');
+    z-index: 3;
+}
+#glassCanvas {
+    z-index: 4;
+}
+#bgCanvas {
+    z-index: 1;
+}
+.ui-container {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none; /* Let drag events fall through outside the card */
+    text-align: center;
+    width: 90%;
+    max-width: 500px; /* Tightened bounding box */
+}
+.ui-card {
+    background: rgba(12, 12, 12, 0.35); /* More transparent card background */
+    border: 1px solid rgba(212, 120, 10, 0.12); /* Extremely subtle, immersion-safe border */
+    border-radius: 10px;
+    padding: 12px 25px; /* Shrunk down and preserved padding */
+    pointer-events: auto; /* Restore interaction for text if needed */
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+h1 {
+    margin: 0 0 6px 0; /* Tightened vertical gap */
+    font-family: 'Ultra', serif; /* Solid, thick vintage American wood type */
+    font-size: 1.95rem; /* Scaled up for better visibility */
+    font-weight: normal;
+    letter-spacing: 0.5px;
+    color: #ffe0a3;
+    text-shadow: 0 3px 6px rgba(0,0,0,0.9);
+    line-height: 1.25;
+}
+.subtext-main {
+    margin: 0 0 3px 0; /* Tightened spacing above the secondary subtext */
+    font-family: 'Arbutus Slab', serif; /* Sturdy, clean 19th-century billboard slab */
+    font-size: 1.05rem; /* Scaled up for readability */
+    color: #bfa38a;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+.subtext-mobile {
+    display: none !important;
+    margin: 0;
+    font-family: 'Arbutus Slab', serif;
+    font-size: 0.8rem; /* Scaled up for readability */
+    color: rgba(191, 163, 138, 0.65); /* Slightly muted, transparent shade for visual hierarchy */
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+/* Dedicated Sidebar Controls on the Right Edge */
+.right-controls {
+    position: absolute;
+    top: 50%;
+    right: 25px;
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    pointer-events: auto;
+    align-items: flex-end; /* Grows leftward, preserving right-margin alignment */
+}
+.right-controls button {
+    background: rgba(212, 120, 10, 0.12);
+    border: 1px solid rgba(212, 120, 10, 0.3);
+    color: #ffe0a3;
+    padding: 10px; /* Symmetrical padding for circular default state */
+    border-radius: 30px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 45px; /* Sized exactly to contain only the emoji */
+    height: 45px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy pop-out transition */
+}
+.right-controls button .emoji {
+    font-size: 1.15rem;
+    display: inline-block;
+    transition: transform 0.25s ease;
+}
+.right-controls button .btn-text {
+    font-size: 0.85rem;
+    opacity: 0;
+    max-width: 0;
+    display: inline-block;
+    overflow: hidden;
+    transition: opacity 0.2s ease, max-width 0.25s ease, margin-left 0.25s ease;
+    margin-left: 0;
+}
+
+/* Desktop Hover Pop-out States */
+.right-controls button:hover {
+    background: rgba(212, 120, 10, 0.35);
+    border-color: #ffca66;
+    max-width: 160px; /* Expands to fit the sliding text */
+    padding: 10px 18px; /* Restores wider landscape button padding */
+    box-shadow: 0 8px 20px rgba(212, 120, 10, 0.25);
+    transform: scale(1.05);
+}
+.right-controls button:hover .btn-text {
+    opacity: 1;
+    max-width: 100px;
+    margin-left: 8px; /* Adds space once text is revealed */
+}
+.right-controls button:hover .emoji {
+    transform: scale(1.1);
+}
+.right-controls button:active {
+    transform: scale(0.95);
+}
+
+.mobile-controls {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 25px;
+    z-index: 10;
+    pointer-events: auto;
+}
+.tilt-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+.tilt-btn:active {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Styled Bottom Navigation Elements */
+.github-link {
+    position: absolute;
+    bottom: 25px;
+    right: 25px;
+    z-index: 10;
+    pointer-events: auto;
+}
+.github-link a {
+    color: #bfa38a;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: color 0.15s ease;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.github-link a:hover {
+    color: #ffe0a3;
+}
+.gemini-credit {
+    position: absolute;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: #bfa38a;
+    opacity: 0.5; /* Half-transparent */
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.mobile-header {
+    display: none !important;
+}
+
+/* Mobile specific Sequential Footer Element */
+.mobile-footer {
+    display: none;
+}
+
+/* Responsive styling to ensure buttons don't block canvas on mobile */
+@media (max-width: 768px) {
+    body, html {
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100vh !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .canvas-container {
+        height: 100vh !important; /* Adjust dynamically to the device's vertical screen size */
+        touch-action: auto !important;
+    }
+    .ui-container {
+        top: 175px !important; /* Move header text directly underneath the smaller logo */
+        transform: translateX(-50%) !important;
+        position: absolute !important;
+    }
+    .desktop-header {
+        display: none !important;
+    }
+    .mobile-header {
+        display: block !important;
+    }
+    h1 {
+        font-size: 1.4rem !important;
+    }
+    .subtext-main {
+        font-size: 0.95rem !important;
+    }
+    .subtext-mobile {
+        display: block !important;
+        font-size: 0.75rem !important;
+    }
+    .right-controls {
+        position: fixed !important; /* Locked to the viewport bottom */
+        top: auto !important;
+        bottom: 20px !important; 
+        right: 20px !important;
+        transform: none !important;
+        flex-direction: row !important; /* Horizontal layout parallel to tilt keys */
+        gap: 10px !important;
+        align-items: center !important;
+        z-index: 100 !important; /* Forces overlays on top of the Canvas & Glass outlines */
+    }
+    .mobile-controls {
+        position: fixed !important; /* Locked to the viewport bottom */
+        bottom: 20px !important; 
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        display: flex !important;
+        gap: 15px !important;
+        z-index: 100 !important;
+    }
+    .tilt-btn {
+        width: 50px !important; 
+        height: 50px !important;
+        font-size: 1.1rem !important;
+    }
+    /* Damped hover on mobile since hover is triggered by tap */
+    .right-controls button:hover {
+        max-width: 45px; /* Retains circular profile on mobile */
+        padding: 10px;
+        transform: scale(1.1);
+    }
+    .right-controls button:hover .btn-text {
+        opacity: 0;
+        max-width: 0;
+        margin-left: 0;
+    }
+    .mobile-controls {
+        display: flex;
+    }
+    #spawnShotBtn {
+        display: none !important;
+    }
+    /* Hide desktop absolute overlays */
+    .github-link, .gemini-credit {
+        display: none !important;
+    }
+    /* Sequential layout footer aligned to the left on mobile to prevent overlapping with floating buttons */
+    .mobile-footer {
+        display: flex;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        justify-content: center !important;
+        gap: 8px !important; /* Clean vertical line-break gap */
+        padding-left: 20px !important;
+        background: #121212; /* Seamless integration with bottom gradient vignette */
+        border-top: 1px solid rgba(212, 120, 10, 0.15); /* Ambient copper/amber divider line */
+        color: #bfa38a;
+        font-family: 'Arbutus Slab', serif;
+        font-size: 0.85rem;
+        font-weight: 500;
+        width: 100%;
+        height: 85px;
+        position: relative;
+        z-index: 10;
+    }
+    .mobile-footer a {
+        color: #ff9f3b !important; /* Standout copper/amber color to show it is a link */
+        text-decoration: underline !important;
+        font-weight: bold;
+        transition: color 0.15s ease;
+    }
+    .mobile-footer a:hover {
+        color: #ffe0a3 !important;
+    }
+}
+@media (min-width: 768px) {
+    .mobile-controls {
+        display: none;
+    }
+}
