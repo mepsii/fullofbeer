@@ -39,6 +39,7 @@ let currentRTop = R_TOP_DESKTOP;
 
 let width, height;
 let isPouring = false;
+let isSimulationActive = true;
 
 // Static Memory Allocation (Zero garbage collection latency)
 const MAX_PARTICLES = 12000;     // Massive pool limit
@@ -240,51 +241,53 @@ function resize() {
 
     const tableY = height - 80;
 
-    if (glasses.length === 0) {
-        // Initialize primary glass
-        glasses.push({
-            type: mobile ? 'shot' : 'pint',
-            x: mobile ? window.innerWidth / 2 : 120,
-            y: tableY - 27,
-            vx: 0, vy: 0, theta: 0, vtheta: 0,
-            targetX: mobile ? window.innerWidth / 2 : 120,
-            targetY: tableY - 27,
-            targetTheta: 0,
-            isDragging: false,
-            dragOffsetX: 0, dragOffsetY: 0,
-            height: currentGlassHeight,
-            rBase: currentRBase,
-            rTop: currentRTop
-        });
-    } else {
-        glasses[0].type = mobile ? 'shot' : 'pint';
-        glasses[0].height = currentGlassHeight;
-        glasses[0].rBase = currentRBase;
-        glasses[0].rTop = currentRTop;
-        
-        if (mobile && glasses.length > 1) {
-            // Remove desktop extra shot glass on mobile resize
-            glasses.splice(1);
-            shotSpawned = false;
-            const spawnShotBtn = document.getElementById('spawnShotBtn');
-            if (spawnShotBtn) {
-                spawnShotBtn.innerHTML = '<span class="emoji">🥃</span><span class="btn-text">Spawn Shot</span>';
-                spawnShotBtn.style.background = 'rgba(212, 120, 10, 0.25)';
-                spawnShotBtn.style.borderColor = 'rgba(212, 120, 10, 0.5)';
+    if (isSimulationActive) {
+        if (glasses.length === 0) {
+            // Initialize primary glass
+            glasses.push({
+                type: mobile ? 'shot' : 'pint',
+                x: mobile ? window.innerWidth / 2 : 120,
+                y: tableY - 27,
+                vx: 0, vy: 0, theta: 0, vtheta: 0,
+                targetX: mobile ? window.innerWidth / 2 : 120,
+                targetY: tableY - 27,
+                targetTheta: 0,
+                isDragging: false,
+                dragOffsetX: 0, dragOffsetY: 0,
+                height: currentGlassHeight,
+                rBase: currentRBase,
+                rTop: currentRTop
+            });
+        } else {
+            glasses[0].type = mobile ? 'shot' : 'pint';
+            glasses[0].height = currentGlassHeight;
+            glasses[0].rBase = currentRBase;
+            glasses[0].rTop = currentRTop;
+            
+            if (mobile && glasses.length > 1) {
+                // Remove desktop extra shot glass on mobile resize
+                glasses.splice(1);
+                shotSpawned = false;
+                const spawnShotBtn = document.getElementById('spawnShotBtn');
+                if (spawnShotBtn) {
+                    spawnShotBtn.innerHTML = '<span class="emoji">🥃</span><span class="btn-text">Spawn Shot</span>';
+                    spawnShotBtn.style.background = 'rgba(212, 120, 10, 0.25)';
+                    spawnShotBtn.style.borderColor = 'rgba(212, 120, 10, 0.5)';
+                }
             }
         }
-    }
 
-    // Move glasses relative to table scaling if necessary
-    if (oldHeight !== undefined && oldHeight !== height) {
-        const dy = height - oldHeight;
-        for (let gIdx = 0; gIdx < glasses.length; gIdx++) {
-            glasses[gIdx].y += dy;
-            glasses[gIdx].targetY += dy;
-        }
-        for (let i = 0; i < activeCount; i++) {
-            particlePool[i].y += dy;
-            particlePool[i].py += dy;
+        // Move glasses relative to table scaling if necessary
+        if (oldHeight !== undefined && oldHeight !== height) {
+            const dy = height - oldHeight;
+            for (let gIdx = 0; gIdx < glasses.length; gIdx++) {
+                glasses[gIdx].y += dy;
+                glasses[gIdx].targetY += dy;
+            }
+            for (let i = 0; i < activeCount; i++) {
+                particlePool[i].y += dy;
+                particlePool[i].py += dy;
+            }
         }
     }
 
@@ -523,6 +526,10 @@ function updatePhysics() {
     const logoTime = Date.now() * 0.0022;
     logo.y = logo.baseY + Math.sin(logoTime) * (mobile ? 1.5 : 3.5);
     logo.x = logo.baseX + Math.cos(logoTime * 0.8) * (mobile ? 0.7 : 1.5);
+
+    if (!isSimulationActive) {
+        return;
+    }
 
     for (let gIdx = 0; gIdx < glasses.length; gIdx++) {
         const gl = glasses[gIdx];
@@ -1293,55 +1300,57 @@ function draw() {
     bgCtx.arc(tapX + Math.sin(leverAngle) * leverLen, 15 - Math.cos(leverAngle) * leverLen, mobile ? 4 : 8, 0, Math.PI * 2);
     bgCtx.fill();
 
-    // SINGLE-PATH GPU BATCH RENDERING (Uses squares 'rect' to bypass complex curves, blurred automatically by SVG)
-    
-    // 1. Draw clear golden beer (for pint glass or in the air on desktop)
-    beerCtx.fillStyle = '#ffb300';
-    beerCtx.beginPath();
-    for (let i = 0; i < activeCount; i++) {
-        const p = particlePool[i];
-        if (p.type === 'beer' && p.liquidType === 'beer') {
-            const r = p.radius;
-            beerCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+    if (isSimulationActive) {
+        // SINGLE-PATH GPU BATCH RENDERING (Uses squares 'rect' to bypass complex curves, blurred automatically by SVG)
+        
+        // 1. Draw clear golden beer (for pint glass or in the air on desktop)
+        beerCtx.fillStyle = '#ffb300';
+        beerCtx.beginPath();
+        for (let i = 0; i < activeCount; i++) {
+            const p = particlePool[i];
+            if (p.type === 'beer' && p.liquidType === 'beer') {
+                const r = p.radius;
+                beerCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+            }
         }
-    }
-    beerCtx.fill();
+        beerCtx.fill();
 
-    // 1b. Draw rich heavy bourbon (Always stays dark, even when spilled outside the glass!)
-    beerCtx.fillStyle = '#5c2c06';
-    beerCtx.beginPath();
-    for (let i = 0; i < activeCount; i++) {
-        const p = particlePool[i];
-        if (p.type === 'beer' && p.liquidType === 'bourbon') {
-            const r = p.radius;
-            beerCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+        // 1b. Draw rich heavy bourbon (Always stays dark, even when spilled outside the glass!)
+        beerCtx.fillStyle = '#5c2c06';
+        beerCtx.beginPath();
+        for (let i = 0; i < activeCount; i++) {
+            const p = particlePool[i];
+            if (p.type === 'beer' && p.liquidType === 'bourbon') {
+                const r = p.radius;
+                beerCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+            }
         }
-    }
-    beerCtx.fill();
+        beerCtx.fill();
 
-    // 2. Draw white beer foam
-    foamCtx.fillStyle = '#faf6f0';
-    foamCtx.beginPath();
-    for (let i = 0; i < activeCount; i++) {
-        const p = particlePool[i];
-        if (p.type === 'foam' && p.liquidType === 'beer') {
-            const r = p.radius;
-            foamCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+        // 2. Draw white beer foam
+        foamCtx.fillStyle = '#faf6f0';
+        foamCtx.beginPath();
+        for (let i = 0; i < activeCount; i++) {
+            const p = particlePool[i];
+            if (p.type === 'foam' && p.liquidType === 'beer') {
+                const r = p.radius;
+                foamCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+            }
         }
-    }
-    foamCtx.fill();
+        foamCtx.fill();
 
-    // 2b. Draw bourbon foam/splash particles (translucent amber) - absolutely no froth is drawn inside shot glasses
-    foamCtx.fillStyle = 'rgba(210, 105, 30, 0.45)';
-    foamCtx.beginPath();
-    for (let i = 0; i < activeCount; i++) {
-        const p = particlePool[i];
-        if (p.type === 'foam' && p.liquidType === 'bourbon') {
-            const r = p.radius;
-            foamCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+        // 2b. Draw bourbon foam/splash particles (translucent amber) - absolutely no froth is drawn inside shot glasses
+        foamCtx.fillStyle = 'rgba(210, 105, 30, 0.45)';
+        foamCtx.beginPath();
+        for (let i = 0; i < activeCount; i++) {
+            const p = particlePool[i];
+            if (p.type === 'foam' && p.liquidType === 'bourbon') {
+                const r = p.radius;
+                foamCtx.rect(p.x - r, p.y - r, r * 2, r * 2);
+            }
         }
+        foamCtx.fill();
     }
-    foamCtx.fill();
 
     // Render Floating Squircle Sign (On glass canvas for overlay visibility)
     glassCtx.save();
@@ -1593,8 +1602,10 @@ window.addEventListener('wheel', (e) => {
 const tapBtn = document.getElementById('tapBtn');
 const resetBtn = document.getElementById('resetBtn');
 const spawnShotBtn = document.getElementById('spawnShotBtn');
+const perfBtn = document.getElementById('perfBtn');
 
 tapBtn.addEventListener('click', () => {
+    if (!isSimulationActive) return; // Disable tap button when simulation is inactive
     isPouring = !isPouring;
     if (isPouring) {
         tapBtn.innerHTML = '<span class="emoji">🛑</span><span class="btn-text">Close Tap</span>';
@@ -1608,7 +1619,44 @@ tapBtn.addEventListener('click', () => {
 });
 
 resetBtn.addEventListener('click', () => {
+    if (!isSimulationActive) return;
     fillGlass();
+});
+
+perfBtn.addEventListener('click', () => {
+    isSimulationActive = !isSimulationActive;
+    if (!isSimulationActive) {
+        activeCount = 0;
+        activeBubbles = 0;
+        glasses = [];
+        isPouring = false;
+        
+        // Reset tap button state
+        tapBtn.innerHTML = '<span class="emoji">🍺</span><span class="btn-text">Open Tap</span>';
+        tapBtn.style.background = 'rgba(212, 120, 10, 0.25)';
+        tapBtn.style.borderColor = 'rgba(212, 120, 10, 0.5)';
+
+        // Hide controls
+        document.querySelector('.right-controls').style.display = 'none';
+        const mobControls = document.querySelector('.mobile-controls');
+        if (mobControls) mobControls.style.display = 'none';
+
+        perfBtn.innerHTML = '<span class="emoji">⚡</span><span class="btn-text">Enable Physics</span>';
+        perfBtn.setAttribute('title', 'Enable physics simulation');
+    } else {
+        document.querySelector('.right-controls').style.display = 'flex';
+        const mobile = window.innerWidth <= 768;
+        const mobControls = document.querySelector('.mobile-controls');
+        if (mobControls) {
+            mobControls.style.display = mobile ? 'flex' : 'none';
+        }
+
+        resize();
+        fillGlass();
+
+        perfBtn.innerHTML = '<span class="emoji">❌</span><span class="btn-text">Disable Physics</span>';
+        perfBtn.setAttribute('title', 'Disable physics simulation');
+    }
 });
 
 spawnShotBtn.addEventListener('click', () => {

@@ -214,6 +214,63 @@ h1 {
 .github-link a:hover {
     color: #ffe0a3;
 }
+.performance-btn {
+    position: absolute;
+    bottom: 95px; /* Floats just above the 80px wooden table */
+    right: 25px; /* Tucked in the bottom right corner */
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    z-index: 10;
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.03); /* Extremely semi-transparent */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(191, 163, 138, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(2px);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    font-size: 0.95rem;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 36px; /* Sized exactly to contain only the emoji */
+    padding: 0;
+}
+.performance-btn .emoji {
+    font-size: 0.85rem;
+    display: inline-block;
+    transition: transform 0.25s ease;
+}
+.performance-btn .btn-text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.75rem;
+    opacity: 0;
+    max-width: 0;
+    display: inline-block;
+    overflow: hidden;
+    transition: opacity 0.2s ease, max-width 0.25s ease, margin-left 0.25s ease;
+    margin-left: 0;
+}
+.performance-btn:hover {
+    background: rgba(212, 120, 10, 0.15); /* Sleek matching copper glow on hover */
+    border-color: rgba(212, 120, 10, 0.35);
+    color: #ffe0a3;
+    width: 150px; /* Expands to fit the sliding text */
+    padding: 0 12px; /* Restores wider landscape button padding */
+}
+.performance-btn:hover .btn-text {
+    opacity: 1;
+    max-width: 100px;
+    margin-left: 6px;
+}
+.performance-btn:hover .emoji {
+    transform: scale(1.1);
+}
+.performance-btn:active {
+    transform: scale(0.95);
+}
 .gemini-credit {
     position: absolute;
     bottom: 25px;
@@ -344,6 +401,26 @@ h1 {
     }
     .mobile-footer a:hover {
         color: #ffe0a3 !important;
+    }
+    .performance-btn {
+        position: fixed !important;
+        bottom: 110px !important; /* Floats above the mobile footer and controls */
+        right: 20px !important;
+        z-index: 101 !important;
+        background: rgba(12, 12, 12, 0.45) !important;
+        border-color: rgba(212, 120, 10, 0.2) !important;
+        color: rgba(191, 163, 138, 0.75) !important;
+        width: 36px !important;
+        padding: 0 !important;
+    }
+    .performance-btn:hover {
+        width: 36px !important;
+        padding: 0 !important;
+    }
+    .performance-btn:hover .btn-text {
+        opacity: 0 !important;
+        max-width: 0 !important;
+        margin-left: 0 !important;
     }
 }
 @media (min-width: 768px) {
