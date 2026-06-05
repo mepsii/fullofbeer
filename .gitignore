@@ -1,0 +1,18 @@
+# macOS Finder / Metadata files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+Icon?
+
+# Thumbnails
+._*
+
+# Files that might be created on a Mac volume or network shares
+.DocumentRevisions-V100
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent

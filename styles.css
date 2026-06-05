@@ -66,7 +66,7 @@ canvas {
     background: rgba(12, 12, 12, 0.35); /* More transparent card background */
     border: 1px solid rgba(212, 120, 10, 0.12); /* Extremely subtle, immersion-safe border */
     border-radius: 10px;
-    padding: 12px 25px 18px 25px; /* Shrunk down and preserved padding, slightly extra bottom padding for toggle */
+    padding: 12px 25px 18px 25px; /* Symmetrical padding, with extra bottom padding for absolute toggle on desktop */
     pointer-events: auto; /* Restore interaction for text if needed */
     backdrop-filter: blur(4px);
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
@@ -92,6 +92,12 @@ canvas {
     padding: 3px 8px;
     border-radius: 4px;
     border: 1px solid rgba(212, 120, 10, 0.2);
+}
+.desktop-only {
+    display: inline !important;
+}
+.mobile-only {
+    display: none !important;
 }
 .dropdown-toggle:hover {
     color: #ffe0a3;
@@ -526,6 +532,20 @@ h1 {
         opacity: 0 !important;
         max-width: 0 !important;
         margin-left: 0 !important;
+    }
+    .desktop-only {
+        display: none !important;
+    }
+    .mobile-only {
+        display: inline !important;
+    }
+    .ui-card {
+        padding: 12px 25px 12px 25px !important;
+    }
+    .dropdown-toggle {
+        position: static !important;
+        align-self: flex-end !important;
+        margin-top: 10px !important;
     }
 }
 @media (min-width: 768px) {
