@@ -136,7 +136,7 @@ canvas {
 }
 .dropdown-box.open {
     opacity: 1;
-    max-height: 220px;
+    max-height: 260px;
     pointer-events: auto;
     transform: translateY(0);
 }
@@ -151,17 +151,25 @@ canvas {
 }
 .dropdown-list {
     margin: 0;
-    padding: 0 0 0 15px;
+    padding: 0 0 0 5px;
     text-align: left;
-    list-style-type: disc;
-    color: #ffe0a3;
+    list-style-type: none; /* Hide default bullets */
 }
 .dropdown-list li {
-    margin: 6px 0;
+    margin: 8px 0;
     font-family: 'Arbutus Slab', serif;
     font-size: 0.9rem;
     line-height: 1.35;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    position: relative;
+    padding-left: 22px; /* Indent to make space for emoji */
+}
+.dropdown-list li::before {
+    content: "📌";
+    position: absolute;
+    left: 0;
+    top: 2px; /* Align precisely with the first line of text */
+    font-size: 0.85rem;
 }
 .dropdown-list li .item-link {
     text-decoration: none;
