@@ -13,7 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Arbutus+Slab&family=Ultra&display=swap" rel="stylesheet">
 
     <!-- Link External Stylesheet -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=8">
 </head>
 
 <body>
@@ -51,10 +51,29 @@
 
     <div class="ui-container">
         <div class="ui-card">
-            <h1 class="desktop-header">>have a beer while you browse,</h1>
-            <h1 class="mobile-header">>stop in for a shot while you browse,</h1>
-            <p class="subtext-main">>welcome to fullof.beer</p>
-            <p class="subtext-mobile">>visit us on a desktop browser for a full frothy beer</p>
+            <h1 class="desktop-header">have a beer while you browse,</h1>
+            <h1 class="mobile-header">stop in for a shot while you browse,</h1>
+            <p class="subtext-main">welcome to fullof.beer</p>
+            <p class="subtext-mobile">visit on a desktop browser for a full frothy beer</p>
+            <div class="dropdown-toggle" id="dropdownToggle">
+                <span class="click-text">click here</span>
+                <span class="arrow">▼</span>
+            </div>
+        </div>
+        <div class="dropdown-box" id="dropdownBox">
+            <h3 class="dropdown-header">neat stuff 2 check out</h3>
+            <ul class="dropdown-list">
+                <li>
+                    <a href="https://fullof.beer" target="_blank" rel="noopener noreferrer" class="item-link"><strong class="item-title">this site</strong></a>
+                    <span class="hyphen">-</span>
+                    <span class="item-desc">pretty cool right</span>
+                </li>
+                <li>
+                    <a href="https://github.com/mepsii/est" target="_blank" rel="noopener noreferrer" class="item-link"><strong class="item-title">untitled voxel survival game</strong></a>
+                    <span class="hyphen">-</span>
+                    <span class="item-desc">yet to be released vibecoded jank, check back</span>
+                </li>
+            </ul>
         </div>
     </div>
 

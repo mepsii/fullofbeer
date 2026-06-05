@@ -62,10 +62,11 @@ canvas {
     max-width: 500px; /* Tightened bounding box */
 }
 .ui-card {
+    position: relative;
     background: rgba(12, 12, 12, 0.35); /* More transparent card background */
     border: 1px solid rgba(212, 120, 10, 0.12); /* Extremely subtle, immersion-safe border */
     border-radius: 10px;
-    padding: 12px 25px; /* Shrunk down and preserved padding */
+    padding: 12px 25px 18px 25px; /* Shrunk down and preserved padding, slightly extra bottom padding for toggle */
     pointer-events: auto; /* Restore interaction for text if needed */
     backdrop-filter: blur(4px);
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
@@ -73,6 +74,110 @@ canvas {
     flex-direction: column;
     align-items: center;
     width: 100%;
+}
+.dropdown-toggle {
+    position: absolute;
+    bottom: 6px;
+    right: 15px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    color: #bfa38a;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    background: rgba(12, 12, 12, 0.65);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(212, 120, 10, 0.2);
+}
+.dropdown-toggle:hover {
+    color: #ffe0a3;
+    background: rgba(212, 120, 10, 0.15);
+    border-color: rgba(212, 120, 10, 0.4);
+    transform: scale(1.02);
+}
+.dropdown-toggle .arrow {
+    font-size: 0.6rem;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-block;
+}
+.dropdown-toggle.open .arrow {
+    transform: rotate(180deg);
+}
+.dropdown-toggle .click-text {
+    font-family: 'Arbutus Slab', serif;
+}
+.dropdown-box {
+    width: 100%;
+    margin-top: 10px;
+    background-color: #b07d50; /* Cork base color fallback */
+    background-image: linear-gradient(rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.58)), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='cork'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23eedcbd' surfaceScale='2.5' result='light'%3E%3CfeDistantLight azimuth='45' elevation='55'/%3E%3C/feDiffuseLighting%3E%3CfeBlend mode='multiply' in='SourceGraphic' in2='light'/%3E%3C/filter%3E%3Crect width='180' height='180' fill='%23b07d50' filter='url(%23cork)'/%3E%3C/svg%3E");
+    background-size: cover;
+    border: 1px solid rgba(212, 120, 10, 0.12); /* Match the title box (ui-card) border */
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 0, 0, 0.8);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translateY(-10px);
+    text-align: center;
+}
+.dropdown-box.open {
+    opacity: 1;
+    max-height: 220px;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.dropdown-header {
+    margin: 0 0 10px 0;
+    font-family: 'Arbutus Slab', serif;
+    font-size: 1.15rem;
+    color: #ffe0a3;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
+    font-weight: bold;
+    text-align: center;
+}
+.dropdown-list {
+    margin: 0;
+    padding: 0 0 0 15px;
+    text-align: left;
+    list-style-type: disc;
+    color: #ffe0a3;
+}
+.dropdown-list li {
+    margin: 6px 0;
+    font-family: 'Arbutus Slab', serif;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+.dropdown-list li .item-link {
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+.dropdown-list li .item-link:hover .item-title {
+    color: #ff9f3b; /* Amber hover highlight */
+    text-decoration: underline;
+}
+.dropdown-list li .item-title {
+    font-weight: 900;
+    color: #ffe0a3;
+    cursor: pointer;
+}
+.dropdown-list li .hyphen {
+    color: rgba(255, 224, 163, 0.45); /* Grey/muted amber hyphen */
+    margin: 0 4px;
+}
+.dropdown-list li .item-desc {
+    font-size: 0.8rem; /* Reduced size */
+    color: rgba(255, 224, 163, 0.7); /* Softer amber/grey text */
+    font-weight: normal;
 }
 h1 {
     margin: 0 0 6px 0; /* Tightened vertical gap */

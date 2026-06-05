@@ -88,6 +88,16 @@ const logo = {
     r: 45      // corner radius
 };
 
+// Toggleable Dropdown Obstacle Properties
+const dropdownObstacle = {
+    x: 0,
+    y: 0,
+    hw: 0,
+    hh: 0,
+    r: 8,       // corner radius of the dropdown-box
+    active: false
+};
+
 // Offscreen canvas to cache blurred neon bloom
 const bloomCanvas = document.createElement('canvas');
 const bloomCtx = bloomCanvas.getContext('2d');
@@ -513,9 +523,27 @@ function fillGlass() {
     }
 }
 
+function updateDropdownObstacleCoords() {
+    const el = document.getElementById('dropdownBox');
+    if (!el) return;
+    
+    dropdownObstacle.active = el.classList.contains('open') || el.offsetHeight > 0;
+    if (!dropdownObstacle.active) return;
+    
+    const rect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    
+    dropdownObstacle.x = rect.left + rect.width / 2 - containerRect.left;
+    dropdownObstacle.y = rect.top + rect.height / 2 - containerRect.top;
+    dropdownObstacle.hw = rect.width / 2;
+    dropdownObstacle.hh = rect.height / 2;
+}
+
 function updatePhysics() {
     const floorY = height - 80;
     const mobile = window.innerWidth <= 768;
+
+    updateDropdownObstacleCoords();
 
     // Ensure dynamic dimensions are mapped correctly
     currentGlassHeight = mobile ? 120 : GLASS_HEIGHT_DESKTOP;
@@ -667,70 +695,75 @@ function updatePhysics() {
                 }
             }
 
-            // --- Glass-to-Obstacle (Logo) Collision solver ---
-            let maxLogoPen = 0;
-            let colPtLogoX = 0;
-            let colPtLogoY = 0;
-            let colNormalLogoX = 0;
-            let colNormalLogoY = 0;
-            const glassThicknessMargin = gl.type === 'shot' ? 2.5 : 5.0; // Margin matching physical glass bounds
+            // --- Glass-to-Obstacle Collision solver ---
+            const activeObstacles = [logo];
+            if (dropdownObstacle.active) activeObstacles.push(dropdownObstacle);
 
-            for (let i = 0; i < boundaryPoints.length; i++) {
-                const pt = boundaryPoints[i];
-                const wX = gl.x + pt.u * gCos + pt.v * gSin;
-                const wY = gl.y + pt.u * gSin - pt.v * gCos;
+            for (const obs of activeObstacles) {
+                let maxObsPen = 0;
+                let colPtObsX = 0;
+                let colPtObsY = 0;
+                let colNormalObsX = 0;
+                let colNormalObsY = 0;
+                const glassThicknessMargin = gl.type === 'shot' ? 2.5 : 5.0; // Margin matching physical glass bounds
 
-                const sd = sdRoundedBox(wX, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                if (sd < glassThicknessMargin) {
-                    const pen = glassThicknessMargin - sd;
-                    if (pen > maxLogoPen) {
-                        maxLogoPen = pen;
-                        colPtLogoX = wX;
-                        colPtLogoY = wY;
+                for (let i = 0; i < boundaryPoints.length; i++) {
+                    const pt = boundaryPoints[i];
+                    const wX = gl.x + pt.u * gCos + pt.v * gSin;
+                    const wY = gl.y + pt.u * gSin - pt.v * gCos;
 
-                        // Normal calculation via central difference approximations on SDF
-                        const eps = 0.5;
-                        const dX = sdRoundedBox(wX + eps, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(wX - eps, wY, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                        const dY = sdRoundedBox(wX, wY + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(wX, wY - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                        const len = Math.sqrt(dX * dX + dY * dY) || 0.001;
-                        colNormalLogoX = dX / len;
-                        colNormalLogoY = dY / len;
+                    const sd = sdRoundedBox(wX, wY, obs.x, obs.y, obs.hw, obs.hh, obs.r);
+                    if (sd < glassThicknessMargin) {
+                        const pen = glassThicknessMargin - sd;
+                        if (pen > maxObsPen) {
+                            maxObsPen = pen;
+                            colPtObsX = wX;
+                            colPtObsY = wY;
+
+                            // Normal calculation via central difference approximations on SDF
+                            const eps = 0.5;
+                            const dX = sdRoundedBox(wX + eps, wY, obs.x, obs.y, obs.hw, obs.hh, obs.r) - sdRoundedBox(wX - eps, wY, obs.x, obs.y, obs.hw, obs.hh, obs.r);
+                            const dY = sdRoundedBox(wX, wY + eps, obs.x, obs.y, obs.hw, obs.hh, obs.r) - sdRoundedBox(wX, wY - eps, obs.x, obs.y, obs.hw, obs.hh, obs.r);
+                            const len = Math.sqrt(dX * dX + dY * dY) || 0.001;
+                            colNormalObsX = dX / len;
+                            colNormalObsY = dY / len;
+                        }
                     }
                 }
-            }
 
-            if (maxLogoPen > 0) {
-                // Correct overlapping coordinates instantly
-                gl.x += colNormalLogoX * maxLogoPen;
-                gl.y += colNormalLogoY * maxLogoPen;
+                if (maxObsPen > 0) {
+                    // Correct overlapping coordinates instantly
+                    gl.x += colNormalObsX * maxObsPen;
+                    gl.y += colNormalObsY * maxObsPen;
 
-                const rx = colPtLogoX - gl.x;
-                const ry = colPtLogoY - gl.y;
+                    const rx = colPtObsX - gl.x;
+                    const ry = colPtObsY - gl.y;
 
-                // Normal linear contact point velocity
-                const vcX = gl.vx - gl.vtheta * ry;
-                const vcY = gl.vy + gl.vtheta * rx;
-                const normalVel = vcX * colNormalLogoX + vcY * colNormalLogoY;
+                    // Normal linear contact point velocity
+                    const vcX = gl.vx - gl.vtheta * ry;
+                    const vcY = gl.vy + gl.vtheta * rx;
+                    const normalVel = vcX * colNormalObsX + vcY * colNormalObsY;
 
-                if (normalVel < 0) {
-                    const restitution = 0.45; // Springy neon sign bounce reaction
-                    const mass = 1.0;
-                    const inertia = gl.type === 'shot' ? 800.0 : 2500.0;
+                    if (normalVel < 0) {
+                        const restitution = 0.45; // Springy bounce reaction
+                        const mass = 1.0;
+                        const inertia = gl.type === 'shot' ? 800.0 : 2500.0;
 
-                    const r_cross_n = rx * colNormalLogoY - ry * colNormalLogoX;
-                    const impulse = -(1.0 + restitution) * normalVel / (1.0 / mass + (r_cross_n * r_cross_n) / inertia);
+                        const r_cross_n = rx * colNormalObsY - ry * colNormalObsX;
+                        const impulse = -(1.0 + restitution) * normalVel / (1.0 / mass + (r_cross_n * r_cross_n) / inertia);
 
-                    // Adjust kinetic vectors instantly
-                    gl.vx += (impulse / mass) * colNormalLogoX;
-                    gl.vy += (impulse / mass) * colNormalLogoY;
-                    gl.vtheta += (impulse * r_cross_n) / inertia;
+                        // Adjust kinetic vectors instantly
+                        gl.vx += (impulse / mass) * colNormalObsX;
+                        gl.vy += (impulse / mass) * colNormalObsY;
+                        gl.vtheta += (impulse * r_cross_n) / inertia;
 
-                    // Tangential sliding friction damping
-                    const tangX = -colNormalLogoY;
-                    const tangY = colNormalLogoX;
-                    const tangVel = vcX * tangX + vcY * tangY;
-                    gl.vx -= tangVel * 0.15 * tangX;
-                    gl.vy -= tangVel * 0.15 * tangY;
+                        // Tangential sliding friction damping
+                        const tangX = -colNormalObsY;
+                        const tangY = colNormalObsX;
+                        const tangVel = vcX * tangX + vcY * tangY;
+                        gl.vx -= tangVel * 0.15 * tangX;
+                        gl.vy -= tangVel * 0.15 * tangY;
+                    }
                 }
             }
         }
@@ -997,41 +1030,46 @@ function updatePhysics() {
 
             // Obstacle Collision solver using dynamic squircle distance fields (SDF) with fast AABB pre-filter
             const colDist = p.radius + 1.2; // Add soft clearance layer
-            const distX = Math.abs(p.x - logo.x);
-            const distY = Math.abs(p.y - logo.y);
-            const margin = logo.hw + colDist + 5; // Bounding margin around squircle
+            const activeObstacles = [logo];
+            if (dropdownObstacle.active) activeObstacles.push(dropdownObstacle);
 
-            if (distX < margin && distY < margin) {
-                const sd = sdRoundedBox(p.x, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                if (sd < colDist) {
-                    const penetration = colDist - sd;
-                    
-                    // Finite difference numerical boundary normal calculation
-                    const eps = 0.5;
-                    const dX = sdRoundedBox(p.x + eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x - eps, p.y, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                    const dY = sdRoundedBox(p.x, p.y + eps, logo.x, logo.y, logo.hw, logo.hh, logo.r) - sdRoundedBox(p.x, p.y - eps, logo.x, logo.y, logo.hw, logo.hh, logo.r);
-                    const len = Math.sqrt(dX * dX + dY * dY) || 0.001;
-                    const invLen = 1.0 / len;
-                    const nx = dX * invLen;
-                    const ny = dY * invLen;
+            for (const obs of activeObstacles) {
+                const distX = Math.abs(p.x - obs.x);
+                const distY = Math.abs(p.y - obs.y);
+                const margin = obs.hw + colDist + 5; // Bounding margin around squircle
 
-                    p.x += nx * penetration;
-                    p.y += ny * penetration;
+                if (distX < margin && distY < margin) {
+                    const sd = sdRoundedBox(p.x, p.y, obs.x, obs.y, obs.hw, obs.hh, obs.r);
+                    if (sd < colDist) {
+                        const penetration = colDist - sd;
+                        
+                        // Finite difference numerical boundary normal calculation
+                        const eps = 0.5;
+                        const dX = sdRoundedBox(p.x + eps, p.y, obs.x, obs.y, obs.hw, obs.hh, obs.r) - sdRoundedBox(p.x - eps, p.y, obs.x, obs.y, obs.hw, obs.hh, obs.r);
+                        const dY = sdRoundedBox(p.x, p.y + eps, obs.x, obs.y, obs.hw, obs.hh, obs.r) - sdRoundedBox(p.x, p.y - eps, obs.x, obs.y, obs.hw, obs.hh, obs.r);
+                        const len = Math.sqrt(dX * dX + dY * dY) || 0.001;
+                        const invLen = 1.0 / len;
+                        const nx = dX * invLen;
+                        const ny = dY * invLen;
 
-                    const dot = p.vx * nx + p.vy * ny;
-                    if (dot < 0) {
-                        // Elastic bounce + friction
-                        p.vx -= 1.35 * dot * nx;
-                        p.vy -= 1.35 * dot * ny;
-                        p.vx *= 0.85; 
-                        p.vy *= 0.85;
+                        p.x += nx * penetration;
+                        p.y += ny * penetration;
 
-                        // Turn high velocity impacts into foam splashes (ONLY if NOT shot glass and NOT bourbon particle)
-                        const insideGlassType = p.insideGlassIndex >= 0 ? glasses[p.insideGlassIndex].type : 'pint';
-                        if (insideGlassType !== 'shot' && p.liquidType !== 'bourbon' && p.type === 'beer' && Math.abs(dot) > 4.0 && Math.random() < 0.25) {
-                            p.type = 'foam';
-                            p.radius = mobile ? 2.9 : 5.8;
-                            p.foamLife = 0.4 + Math.random() * 0.4;
+                        const dot = p.vx * nx + p.vy * ny;
+                        if (dot < 0) {
+                            // Elastic bounce + friction
+                            p.vx -= 1.35 * dot * nx;
+                            p.vy -= 1.35 * dot * ny;
+                            p.vx *= 0.85; 
+                            p.vy *= 0.85;
+
+                            // Turn high velocity impacts into foam splashes (ONLY if NOT shot glass and NOT bourbon particle)
+                            const insideGlassType = p.insideGlassIndex >= 0 ? glasses[p.insideGlassIndex].type : 'pint';
+                            if (insideGlassType !== 'shot' && p.liquidType !== 'bourbon' && p.type === 'beer' && Math.abs(dot) > 4.0 && Math.random() < 0.25) {
+                                p.type = 'foam';
+                                p.radius = mobile ? 2.9 : 5.8;
+                                p.foamLife = 0.4 + Math.random() * 0.4;
+                            }
                         }
                     }
                 }
@@ -1603,6 +1641,13 @@ const tapBtn = document.getElementById('tapBtn');
 const resetBtn = document.getElementById('resetBtn');
 const spawnShotBtn = document.getElementById('spawnShotBtn');
 const perfBtn = document.getElementById('perfBtn');
+const dropdownToggle = document.getElementById('dropdownToggle');
+const dropdownBox = document.getElementById('dropdownBox');
+
+dropdownToggle.addEventListener('click', () => {
+    dropdownToggle.classList.toggle('open');
+    dropdownBox.classList.toggle('open');
+});
 
 tapBtn.addEventListener('click', () => {
     if (!isSimulationActive) return; // Disable tap button when simulation is inactive
